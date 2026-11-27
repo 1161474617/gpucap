@@ -1,0 +1,26 @@
+{
+  "gpu_interval": 1.0,
+  "mem_interval": 5.0,
+  "proc_interval": 5.0,
+  "wer_interval": 5.0,
+  "game_names": [
+    "Cyberpunk2077.exe",
+    "Cyberpunk2077"
+  ],
+  "rotate_mb": 64,
+  "max_session_hours": 24,
+  "temp_warn": 78.0,
+  "hotspot_warn": 92.0,
+  "hotspot_delta_warn": 20.0,
+  "power_warn": 360.0,
+  "cpu_temp_warn": 90.0,
+  "cpu_usage_warn": 95.0,
+  "vram_warn_pct": 92.0,
+  "pcie_drop_warn": true,
+  "gpu_index": 0,
+  "minimize_to_tray": true,
+  "web_port": 8787,
+  "auth_pin": "",
+  "read_only_remote": false,
+  "language": ""
+}

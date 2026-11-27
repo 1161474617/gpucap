@@ -147,12 +147,16 @@ Commands:
 
 ## GitHub Actions 自动构建正式版
 
-仓库内置了多平台自动发布工作流 [release.yml](.github/workflows/release.yml)，支持并行构建并打包发布全平台正式版产物（`gpucap.exe`、`gpucap-android-native.apk`、`gpucap-android-rust.apk` 与 `GPUCap-macos-arm64.zip`）：
+仓库内置了多平台自动发布工作流 [release.yml](.github/workflows/release.yml)，支持并行构建并打包发布全平台正式版产物（`gpucap-setup-x64.exe`、`gpucap.exe`、`gpucap-android-native.apk`、`gpucap-android-rust.apk` 与 `GPUCap-macos-arm64.zip`）：
 
 ```bash
 git tag v0.3.0
 git push origin v0.3.0
 ```
 
-也可以在 GitHub 仓库的 **Actions → Release Build → Run workflow** 中手动触发正式版构建。
+也可以在 GitHub 仓库的 **Actions → Release Build → Run workflow** 中手动触发正式版构建。本地如需直接打包 Windows 安装包（需安装 Inno Setup 6），可执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\installer\build_installer.ps1
+```
 

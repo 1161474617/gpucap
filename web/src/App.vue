@@ -645,9 +645,7 @@ onBeforeUnmount(() => {
       <div class="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2.5">
         <div class="flex flex-wrap items-center gap-2.5">
           <div class="flex items-center gap-2">
-            <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400/20 to-indigo-500/20 text-sky-400 ring-1 ring-sky-400/30">
-              <Activity class="h-4 w-4" />
-            </div>
+            <img src="/favicon.png" alt="GPUCap" class="h-7 w-7 rounded-lg ring-1 ring-sky-400/30" />
             <span class="bg-gradient-to-r from-white to-slate-400 bg-clip-text text-sm font-bold tracking-wide text-transparent">GPUCap</span>
           </div>
 

@@ -55,17 +55,31 @@ jobs:
       - name: 编译 Windows Release 二进制
         run: cargo build --release --locked
 
-      - name: 整理 Windows 发布产物
+      - name: 编译 Windows 安装包 (Inno Setup 6)
         shell: pwsh
         run: |
+          $ver = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue)?.Source
+          if (-not $iscc) {
+            foreach ($p in @("C:\Program Files (x86)\Inno Setup 6\ISCC.exe", "C:\Program Files\Inno Setup 6\ISCC.exe")) {
+              if (Test-Path $p) { $iscc = $p; break }
+            }
+          }
+          if (-not $iscc) {
+            choco install innosetup -y --no-progress
+            $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          }
           New-Item -ItemType Directory -Force -Path dist-win | Out-Null
           Copy-Item target\release\gpucap.exe dist-win\gpucap.exe
+          & $iscc "/DAppVersion=$ver" "installer\gpucap.iss"
 
       - name: 上传 Windows 构建产物
         uses: actions/upload-artifact@v4
         with:
           name: windows-release
-          path: dist-win/gpucap.exe
+          path: |
+            dist-win/gpucap.exe
+            dist-win/gpucap-setup-x64.exe
 
   build-android:
     name: 构建原生安卓 APK (arm64)

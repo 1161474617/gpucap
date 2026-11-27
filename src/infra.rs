@@ -10,6 +10,7 @@ use std::os::windows::io::AsRawHandle;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 use windows_sys::Win32::Foundation::{
     CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, ERROR_SUCCESS, HANDLE, STILL_ACTIVE,
@@ -59,8 +60,44 @@ pub fn base_dir() -> PathBuf {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
+fn is_dir_writable(dir: &Path) -> bool {
+    if fs::create_dir_all(dir).is_err() {
+        return false;
+    }
+    let probe = dir.join(format!(".gpucap_write_probe_{}", std::process::id()));
+    match OpenOptions::new().write(true).create(true).truncate(true).open(&probe) {
+        Ok(_) => {
+            let _ = fs::remove_file(&probe);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+/// 解析数据目录：优先使用程序同级 `data/`（便携模式），若无写权限则回退到 `%LOCALAPPDATA%\GPUCap\data`
 pub fn data_dir() -> PathBuf {
-    base_dir().join("data")
+    static DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+    DATA_DIR
+        .get_or_init(|| {
+            let portable = base_dir().join("data");
+            if is_dir_writable(&portable) {
+                return portable;
+            }
+            if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+                let fallback = PathBuf::from(local).join(APP_NAME).join("data");
+                let _ = fs::create_dir_all(&fallback);
+                return fallback;
+            }
+            portable
+        })
+        .clone()
+}
+
+/// 启动时确保 `data/`、`data/sessions/` 与 `data/incidents/` 目录存在
+pub fn ensure_data_dirs() {
+    let _ = fs::create_dir_all(data_dir());
+    let _ = fs::create_dir_all(sessions_dir());
+    let _ = fs::create_dir_all(incidents_dir());
 }
 
 pub fn sessions_dir() -> PathBuf {

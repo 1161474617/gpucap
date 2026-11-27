@@ -121,4 +121,9 @@ Commands:
 | `8787` | HTTP (TCP IPv4/IPv6) | Embedded Web UI & REST API |
 | `8788` | UDP | LAN host discovery (`GPUCAP_DISCOVER`) |
 
-Push a version tag (`git tag v0.3.0 && git push origin v0.3.0`) or run **Actions → Release Build** manually to build and publish `gpucap.exe`, `gpucap-android-native.apk`, `gpucap-android-rust.apk`, and `GPUCap-macos-arm64.zip`.
+Push a version tag (`git tag v0.3.0 && git push origin v0.3.0`) or run **Actions → Release Build** manually to build and publish `gpucap-setup-x64.exe`, `gpucap.exe`, `gpucap-android-native.apk`, `gpucap-android-rust.apk`, and `GPUCap-macos-arm64.zip`.
+
+To build the Windows x64 installer locally (requires [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\installer\build_installer.ps1
+```

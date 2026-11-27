@@ -147,23 +147,10 @@ impl TrayManager {
     }
 }
 
-/// 纯内存绘制 16x16 暗底绿芯状态图标，无需外部 .ico 文件
+/// 从内嵌 32px PNG 图标解码构造系统托盘图标，与桌面窗口及 EXE 图标保持完全一致
 fn build_rgba_icon() -> Result<Icon, String> {
-    let size = 16u32;
-    let mut rgba = Vec::with_capacity((size * size * 4) as usize);
-    for y in 0..size {
-        for x in 0..size {
-            let border = x == 0 || y == 0 || x == size - 1 || y == size - 1;
-            let inner = (4..12).contains(&x) && (4..12).contains(&y);
-            let (r, g, b, a) = if border {
-                (0x30, 0x45, 0x5c, 0xff)
-            } else if inner {
-                (0x3d, 0xdc, 0x84, 0xff)
-            } else {
-                (0x16, 0x1b, 0x24, 0xff)
-            };
-            rgba.extend_from_slice(&[r, g, b, a]);
-        }
-    }
-    Icon::from_rgba(rgba, size, size).map_err(|e| format!("构造托盘图标失败：{}", e))
+    let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/gpucap-32.png"))
+        .map_err(|e| format!("解码托盘图标失败：{e}"))?;
+    Icon::from_rgba(icon.rgba, icon.width, icon.height)
+        .map_err(|e| format!("构造托盘图标失败：{e}"))
 }

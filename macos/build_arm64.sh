@@ -37,6 +37,21 @@ chmod +x "$APP_DIR/Contents/MacOS/GPUCap"
 cp "$SCRIPT_DIR/Resources/Info.plist" "$APP_DIR/Contents/Info.plist"
 printf 'APPL????' > "$APP_DIR/Contents/PkgInfo"
 
+if [ -f "$SCRIPT_DIR/Resources/AppIcon.png" ] && command -v iconutil >/dev/null 2>&1; then
+  ICONSET_DIR="$SCRIPT_DIR/.build/AppIcon.iconset"
+  rm -rf "$ICONSET_DIR"
+  mkdir -p "$ICONSET_DIR"
+  for sz in 16 32 128 256; do
+    sips -z "$sz" "$sz" "$SCRIPT_DIR/Resources/AppIcon.png" --out "$ICONSET_DIR/icon_${sz}x${sz}.png" >/dev/null
+    sz2=$((sz * 2))
+    if [ "$sz2" -le 256 ]; then
+      sips -z "$sz2" "$sz2" "$SCRIPT_DIR/Resources/AppIcon.png" --out "$ICONSET_DIR/icon_${sz}x${sz}@2x.png" >/dev/null
+    fi
+  done
+  iconutil -c icns "$ICONSET_DIR" -o "$APP_DIR/Contents/Resources/AppIcon.icns" || true
+  rm -rf "$ICONSET_DIR"
+fi
+
 echo "[3/3] 执行本地签名与归档..."
 codesign --force --deep --sign - "$APP_DIR"
 

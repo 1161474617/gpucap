@@ -64,6 +64,7 @@ fn main() {
     }
 
     let cli = Cli::parse();
+    infra::ensure_data_dirs();
     let code = match cli.cmd {
         Some(Commands::Run { minutes }) => daemon::cmd_run(minutes),
         Some(Commands::Daemon { minutes }) => daemon::cmd_daemon(minutes),

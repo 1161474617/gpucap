@@ -2500,64 +2500,143 @@ impl eframe::App for GpuCapApp {
         }
 
         if self.hud_mode {
+            let mut restore_window = false;
+            let mut close_hud = false;
+
+            // 先布局右侧固定控制区，确保按钮永远独立且不遮挡左侧监控数据
+            egui::SidePanel::right("hud_controls")
+                .resizable(false)
+                .show_separator_line(false)
+                .frame(
+                    egui::Frame::none()
+                        .fill(Color32::from_rgb(0x0b, 0x0f, 0x17))
+                        .stroke(Stroke::new(1.0_f32, Color32::from_rgb(0x23, 0x30, 0x44)))
+                        .inner_margin(egui::Margin::symmetric(8.0, 6.0)),
+                )
+                .show(ctx, |ui| {
+                    ui.horizontal_centered(|ui| {
+                        ui.spacing_mut().item_spacing.x = 6.0;
+                        let restore_btn = egui::Button::new(
+                            RichText::new(tr(self.lang, "还原", "Restore"))
+                                .size(11.5)
+                                .color(Color32::from_rgb(0x38, 0xbd, 0xf8)),
+                        )
+                        .fill(Color32::from_rgb(0x16, 0x26, 0x3a))
+                        .stroke(Stroke::new(1.0_f32, Color32::from_rgb(0x26, 0x43, 0x63)))
+                        .rounding(6.0);
+                        if ui.add(restore_btn).clicked() {
+                            restore_window = true;
+                        }
+                        let close_btn = egui::Button::new(
+                            RichText::new("×").size(13.0).color(COL_DIM),
+                        )
+                        .fill(Color32::from_rgb(0x18, 0x20, 0x2c))
+                        .rounding(6.0);
+                        if ui
+                            .add(close_btn)
+                            .on_hover_text(tr(self.lang, "退出程序", "Close"))
+                            .clicked()
+                        {
+                            close_hud = true;
+                        }
+                    });
+                });
+
             egui::CentralPanel::default()
                 .frame(
                     egui::Frame::none()
                         .fill(Color32::from_rgb(0x0b, 0x0f, 0x17))
-                        .stroke(Stroke::new(1.0_f32, COL_BORDER))
-                        .inner_margin(egui::Margin::symmetric(12.0, 8.0)),
+                        .stroke(Stroke::new(1.0_f32, Color32::from_rgb(0x23, 0x30, 0x44)))
+                        .inner_margin(egui::Margin::symmetric(12.0, 6.0)),
                 )
                 .show(ctx, |ui| {
-                    ui.horizontal(|ui| {
+                    // 悬浮条空白区支持鼠标左键直接拖拽移动，双击还原主窗口
+                    let drag_resp = ui.interact(
+                        ui.max_rect(),
+                        ui.id().with("hud_drag_area"),
+                        egui::Sense::click_and_drag(),
+                    );
+                    if drag_resp.drag_started() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                    }
+                    if drag_resp.double_clicked() {
+                        restore_window = true;
+                    }
+
+                    ui.horizontal_centered(|ui| {
+                        ui.spacing_mut().item_spacing.x = 8.0;
+
+                        // 状态圆点 + 品牌标识（替代冗长文字）
+                        let (dot_rect, _) =
+                            ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                        ui.painter()
+                            .circle_filled(dot_rect.center(), 4.0, self.heartbeat.color);
                         ui.label(
-                            RichText::new(&self.heartbeat.text)
+                            RichText::new("GPUCap")
                                 .size(12.0)
                                 .strong()
-                                .color(self.heartbeat.color),
-                        );
+                                .color(Color32::WHITE),
+                        )
+                        .on_hover_text(&self.heartbeat.text);
+
                         ui.separator();
-                        ui.label(
-                            RichText::new(format!("GPU {}", self.last_gpu_summary))
-                                .size(12.5)
-                                .monospace()
-                                .color(COL_FG),
+
+                        let gpu_txt = self.last_gpu_summary.replace("util ", "");
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(format!("GPU {}", gpu_txt))
+                                    .size(12.0)
+                                    .monospace()
+                                    .color(COL_FG),
+                            )
+                            .truncate(),
                         );
+
                         if let Some(ref cpu) = self.live_cpu {
                             ui.separator();
-                            let t_str = cpu.temp_c.map(|t| format!("{t:.0}°C")).unwrap_or_else(|| "—".into());
+                            let t_str = cpu
+                                .temp_c
+                                .map(|t| format!("{t:.0}°C"))
+                                .unwrap_or_else(|| "—".into());
                             ui.label(
-                                RichText::new(format!("CPU {:.0}% ({})", cpu.total_usage, t_str))
-                                    .size(12.5)
+                                RichText::new(format!("CPU {:.0}% {}", cpu.total_usage, t_str))
+                                    .size(12.0)
                                     .monospace()
                                     .color(Color32::from_rgb(0x38, 0xbd, 0xf8)),
                             );
                         }
+
                         if self.alert_count > 0 {
                             ui.separator();
                             ui.label(
                                 RichText::new(if matches!(self.lang, UiLang::Zh) {
                                     format!("告警 {}", self.alert_count)
                                 } else {
-                                    format!("Alerts {}", self.alert_count)
+                                    format!("! {}", self.alert_count)
                                 })
-                                .size(12.0)
+                                .size(11.5)
                                 .strong()
                                 .color(COL_WARN),
                             );
                         }
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button(tr(self.lang, "还原窗口", "Restore")).clicked() {
-                                self.hud_mode = false;
-                                ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
-                                    egui::WindowLevel::Normal,
-                                ));
-                                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(
-                                    egui::vec2(1240.0, 820.0),
-                                ));
-                            }
-                        });
                     });
                 });
+
+            if restore_window {
+                self.hud_mode = false;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
+                ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
+                    egui::WindowLevel::Normal,
+                ));
+                ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(egui::vec2(
+                    1080.0, 620.0,
+                )));
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(
+                    1240.0, 820.0,
+                )));
+            } else if close_hud {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
             return;
         }
 
@@ -2638,11 +2717,15 @@ impl eframe::App for GpuCapApp {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.small_button(tr(self.lang, "置顶浮条", "HUD")).clicked() {
                             self.hud_mode = true;
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(false));
                             ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
                                 egui::WindowLevel::AlwaysOnTop,
                             ));
+                            ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(
+                                egui::vec2(520.0, 38.0),
+                            ));
                             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(
-                                egui::vec2(720.0, 52.0),
+                                egui::vec2(780.0, 40.0),
                             ));
                         }
                         if self.alert_count > 0 {
@@ -3827,12 +3910,17 @@ pub fn cmd_ui(session_arg: Option<String>, selftest: bool, minimized: bool) -> i
     let mut wgpu_options = eframe::egui_wgpu::WgpuConfiguration::default();
     wgpu_options.present_mode = eframe::wgpu::PresentMode::AutoNoVsync;
 
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title(&title)
+        .with_inner_size([1360.0, 820.0])
+        .with_min_inner_size([1080.0, 620.0])
+        .with_visible(!minimized);
+    if let Ok(icon) = eframe::icon_data::from_png_bytes(include_bytes!("../assets/gpucap-256.png")) {
+        viewport = viewport.with_icon(Arc::new(icon));
+    }
+
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title(&title)
-            .with_inner_size([1360.0, 820.0])
-            .with_min_inner_size([1080.0, 620.0])
-            .with_visible(!minimized),
+        viewport,
         vsync: false,
         wgpu_options,
         ..Default::default()
