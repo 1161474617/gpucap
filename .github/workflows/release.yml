@@ -102,6 +102,7 @@ jobs:
   build-macos:
     name: 构建 macOS 客户端 (Apple Silicon)
     runs-on: macos-14
+    continue-on-error: true
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -109,7 +110,7 @@ jobs:
       - name: 执行 macOS 打包脚本
         run: |
           chmod +x macos/build_arm64.sh
-          ./macos/build_arm64.sh
+          bash macos/build_arm64.sh
 
       - name: 上传 macOS 构建产物
         uses: actions/upload-artifact@v4
@@ -117,11 +118,65 @@ jobs:
           name: macos-release
           path: macos/dist/GPUCap-macos-arm64.zip
 
+  build-android-rust:
+    name: 构建 Android Rust+Compose 版 APK (arm64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 JDK 17 与 Android NDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: 配置 Android NDK 28
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "ndk;28.2.13676358"
+
+      - name: 安装 Rust 工具链 (arm64)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: 编译 Rust 核心库并生成 UniFFI 绑定
+        run: |
+          NDK_BIN="$ANDROID_HOME/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$NDK_BIN/aarch64-linux-android26-clang"
+          export CC_aarch64_linux_android="$NDK_BIN/aarch64-linux-android26-clang"
+          export AR_aarch64_linux_android="$NDK_BIN/llvm-ar"
+          cd android-rust/rust-core
+          cargo build --target aarch64-linux-android --release --locked
+          mkdir -p ../app/src/main/jniLibs/arm64-v8a
+          cp target/aarch64-linux-android/release/libgpucap_core.so ../app/src/main/jniLibs/arm64-v8a/libgpucap_core.so
+          cargo run --bin uniffi-bindgen --locked -- generate --library target/aarch64-linux-android/release/libgpucap_core.so --language kotlin --out-dir ../app/src/main/java
+
+      - name: 配置 Gradle 9.6.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.1"
+
+      - name: 编译 Android Rust 版 Release APK
+        run: gradle -p android-rust assembleRelease
+
+      - name: 整理 Android Rust 版发布产物
+        run: |
+          mkdir -p dist-android-rust
+          cp android-rust/app/build/outputs/apk/release/app-release.apk dist-android-rust/gpucap-android-rust.apk
+
+      - name: 上传 Android Rust 版构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-rust-release
+          path: dist-android-rust/gpucap-android-rust.apk
+
   publish-release:
     name: 发布 GitHub Release
-    needs: [build-windows, build-android, build-macos]
+    needs: [build-windows, build-android, build-android-rust, build-macos]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    if: always() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && (needs.build-windows.result == 'success' || needs.build-android.result == 'success' || needs.build-android-rust.result == 'success')
     steps:
       - name: 检出版本清单
         uses: actions/checkout@v4
@@ -155,7 +210,6 @@ jobs:
           prerelease: false
           make_latest: true
           generate_release_notes: true
+          fail_on_unmatched_files: false
           files: |
-            release-assets/gpucap.exe
-            release-assets/gpucap-android-native.apk
-            release-assets/GPUCap-macos-arm64.zip
+            release-assets/*

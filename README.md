@@ -44,6 +44,8 @@ gpucap/
 │   └── infra.rs          # 配置管理、降频掩码解码、环境指纹与系统辅助函数
 ├── web/                  # Vue 3 + Vite + TailwindCSS 网页前端（内嵌至 Rust 可执行文件）
 ├── android-native/       # Kotlin + Jetpack Compose 纯原生安卓/平板客户端
+├── android-rust/         # Rust 核心引擎 (UniFFI + Tokio + Reqwest) + Compose 混合架构安卓端
+│   └── rust-core/        # Rust 异步网络、UDP 发现、PIN 鉴权与数据模型核心库
 └── macos/                # SwiftUI + WKWebView macOS (Apple Silicon) 客户端
 ```
 
@@ -81,7 +83,23 @@ gradle -p .\android-native assembleRelease
 adb install -r .\android-native\app\build\outputs\apk\release\app-release.apk
 ```
 
-### 3. 构建 macOS 客户端（需在 Apple Silicon Mac 上执行）
+### 3. 构建 Rust 核心 + Compose 安卓客户端（`android-rust`）
+> 采用 `UniFFI 0.29` + `Tokio` + `Reqwest (rustls-tls)` 驱动全部网络、UDP 发现与 JSON 解析，需要安装 `aarch64-linux-android` Rust 目标与 Android NDK `28.2`。
+
+```powershell
+# 1. 进入 Rust 核心目录编译 arm64 Release 动态库并生成 UniFFI Kotlin 绑定
+cd .\android-rust\rust-core
+cargo build --target aarch64-linux-android --release
+Copy-Item -Force .\target\aarch64-linux-android\release\libgpucap_core.so ..\app\src\main\jniLibs\arm64-v8a\libgpucap_core.so
+cargo run --bin uniffi-bindgen -- generate --library .\target\aarch64-linux-android\release\libgpucap_core.so --language kotlin --out-dir ..\app\src\main\java
+
+# 2. 编译 Release APK 并安装到设备
+cd ..\..
+gradle -p .\android-rust assembleRelease
+adb install -r .\android-rust\app\build\outputs\apk\release\app-release.apk
+```
+
+### 4. 构建 macOS 客户端（需在 Apple Silicon Mac 上执行）
 
 详细构建步骤请参考 [macos/README.md](macos/README.md)：
 
@@ -126,7 +144,7 @@ Commands:
 
 ## GitHub Actions 自动构建正式版
 
-仓库内置了多平台自动发布工作流 [release.yml](.github/workflows/release.yml)，支持并行构建并打包发布全平台正式版产物（`gpucap.exe`、`gpucap-android-native.apk` 与 `GPUCap-macos-arm64.zip`）：
+仓库内置了多平台自动发布工作流 [release.yml](.github/workflows/release.yml)，支持并行构建并打包发布全平台正式版产物（`gpucap.exe`、`gpucap-android-native.apk`、`gpucap-android-rust.apk` 与 `GPUCap-macos-arm64.zip`）：
 
 ```bash
 git tag v0.3.0
