@@ -1097,6 +1097,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "需要本机 NVIDIA 显卡与驱动环境"]
     fn test_nvapi_diag() {
         let sampler = GpuSampler::new(0);
         let (res, ms) = sampler.sample();
