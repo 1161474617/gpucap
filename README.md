@@ -121,3 +121,17 @@ Commands:
 | `8788` | UDP | 局域网主机自动发现广播端口（响应 `GPUCAP_DISCOVER` 查询） |
 
 * 若需在局域网或公网 IPv6 环境下使用，建议在「设置」中开启**远程访问口令**，或按需启用**远程只读访客模式**以防止外部设备误操作主机采集状态。
+
+---
+
+## GitHub Actions 自动构建正式版
+
+仓库内置了多平台自动发布工作流 [release.yml](.github/workflows/release.yml)，支持并行构建并打包发布全平台正式版产物（`gpucap.exe`、`gpucap-android-native.apk` 与 `GPUCap-macos-arm64.zip`）：
+
+```bash
+git tag v0.3.0
+git push origin v0.3.0
+```
+
+也可以在 GitHub 仓库的 **Actions → Release Build → Run workflow** 中手动触发正式版构建。
+
