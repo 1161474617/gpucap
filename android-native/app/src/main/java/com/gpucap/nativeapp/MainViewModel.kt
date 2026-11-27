@@ -31,6 +31,8 @@ enum class MonitorTab(val label: String) {
 
 data class MainUiState(
     val ready: Boolean = false,
+    val appLang: AppLang = AppLang.EN,
+    val showLangPicker: Boolean = false,
     val page: AppPage = AppPage.Connect,
     val currentUrl: String = "",
     val inputUrl: String = "",
@@ -88,10 +90,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val saved = repo.lastUrlFlow.first()
             val history = repo.historyFlow.first()
             val keepOn = repo.keepScreenOnFlow.first()
+            val rawLang = repo.appLangRawFlow.first()
+            val (initLang, needPicker) = when (rawLang) {
+                AppLang.ZH_CN.code -> AppLang.ZH_CN to false
+                AppLang.EN.code -> AppLang.EN to false
+                else -> AppLang.EN to true
+            }
             repo.authPinFlow.first()
             _uiState.update {
                 it.copy(
                     ready = true,
+                    appLang = initLang,
+                    showLangPicker = needPicker,
                     page = if (saved.isNotEmpty()) AppPage.Monitor else AppPage.Connect,
                     currentUrl = saved,
                     inputUrl = saved,
@@ -114,6 +124,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun tr(zh: String, en: String): String =
+        if (_uiState.value.appLang == AppLang.ZH_CN) zh else en
+
+    fun setAppLang(lang: AppLang) {
+        _uiState.update { it.copy(appLang = lang, showLangPicker = false) }
+        viewModelScope.launch { repo.setAppLang(lang.code) }
+    }
+
     fun onInputChange(value: String) {
         _uiState.update { it.copy(inputUrl = value) }
     }
@@ -121,7 +139,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun connectManual() {
         val norm = repo.normalizeUrl(_uiState.value.inputUrl)
         if (norm == null) {
-            _toastFlow.tryEmit("请输入有效的 IP 或网址")
+            _toastFlow.tryEmit(tr("请输入有效的 IP 或网址", "Please enter a valid IP or URL"))
             return
         }
         openAndSave(norm)
@@ -213,7 +231,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _uiState.update { it.copy(dualChoice = parsed) }
                 }
             }
-            QrParsedResult.Invalid -> _toastFlow.tryEmit("二维码中未包含有效的 GPUCap 主机地址")
+            QrParsedResult.Invalid -> _toastFlow.tryEmit(
+                tr("二维码中未包含有效的 GPUCap 主机地址", "No valid GPUCap host URL found in QR code")
+            )
         }
     }
 
@@ -319,7 +339,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else if (manual || _uiState.value.monitorState.gpuRows.isEmpty()) {
                 _uiState.update {
                     it.copy(
-                        connError = "无法连接到 $url\n(${err.message ?: "网络异常"})",
+                        connError = tr(
+                            "无法连接到 $url\n(${err.message ?: "网络异常"})",
+                            "Failed to connect to $url\n(${err.message ?: "Network error"})",
+                        ),
                     )
                 }
             }
@@ -352,7 +375,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val next = !_uiState.value.keepScreenOn
         _uiState.update { it.copy(keepScreenOn = next) }
         viewModelScope.launch { repo.setKeepScreenOn(next) }
-        _toastFlow.tryEmit(if (next) "已开启副屏常亮" else "已关闭副屏常亮")
+        _toastFlow.tryEmit(
+            if (next) tr("已开启副屏常亮", "Keep screen on enabled")
+            else tr("已关闭副屏常亮", "Keep screen on disabled")
+        )
     }
 
     fun toggleBigHudMode() {
@@ -371,7 +397,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     refreshOnce(manual = true)
                 }
                 .onFailure { err ->
-                    _uiState.update { it.copy(pinError = err.message ?: "口令错误") }
+                    _uiState.update { it.copy(pinError = err.message ?: tr("口令错误", "Invalid PIN")) }
                 }
         }
     }
@@ -400,9 +426,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repo.fetchLiveSummary(url)
                 .onSuccess { summary ->
                     onCopied(summary)
-                    _toastFlow.tryEmit("已复制 Markdown 诊断摘要")
+                    _toastFlow.tryEmit(tr("已复制 Markdown 诊断摘要", "Diagnostic Markdown summary copied"))
                 }
-                .onFailure { _toastFlow.tryEmit(it.message ?: "获取摘要失败") }
+                .onFailure { _toastFlow.tryEmit(it.message ?: tr("获取摘要失败", "Failed to fetch summary")) }
         }
     }
 
@@ -412,11 +438,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repo.saveLiveSession(url)
                 .onSuccess { sess ->
-                    _toastFlow.tryEmit("已补存为会话：$sess")
+                    _toastFlow.tryEmit(tr("已补存为会话：$sess", "Saved as session: $sess"))
                     _uiState.update { it.copy(selectedSession = sess, fullHistory = false) }
                     refreshOnce(manual = true)
                 }
-                .onFailure { _toastFlow.tryEmit(it.message ?: "保存会话失败") }
+                .onFailure { _toastFlow.tryEmit(it.message ?: tr("保存会话失败", "Failed to save session")) }
         }
     }
 
@@ -439,7 +465,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repo.setCollector(st.currentUrl, start)
                 .onSuccess {
-                    _toastFlow.tryEmit(if (start) "已发送启动采集指令" else "已发送停止采集指令")
+                    _toastFlow.tryEmit(
+                        if (start) tr("已发送启动采集指令", "Start capture command sent")
+                        else tr("已发送停止采集指令", "Stop capture command sent")
+                    )
                     if (start) {
                         // 启动采集后会生成新会话，清空当前选中的旧会话以便自动切到最新采集会话
                         _uiState.update { it.copy(selectedSession = "", manualSessionLock = false, fullHistory = false, paused = false) }
@@ -452,7 +481,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         refreshOnce(manual = false)
                     }
                 }
-                .onFailure { _toastFlow.tryEmit(it.message ?: "操作失败") }
+                .onFailure { _toastFlow.tryEmit(it.message ?: tr("操作失败", "Operation failed")) }
         }
     }
 
@@ -463,15 +492,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repo.setLiveMonitor(st.currentUrl, start)
                 .onSuccess {
                     if (start) {
-                        _toastFlow.tryEmit("已开启纯内存实时监测（不保存磁盘）")
+                        _toastFlow.tryEmit(tr("已开启纯内存实时监测（不保存磁盘）", "Live memory monitor started (not saved to disk)"))
                         _uiState.update { it.copy(selectedSession = "__live__", manualSessionLock = false, fullHistory = true, paused = false) }
                     } else {
-                        _toastFlow.tryEmit("已停止实时监测（保留内存日志）")
+                        _toastFlow.tryEmit(tr("已停止实时监测（保留内存日志）", "Live memory monitor stopped (logs retained)"))
                     }
                     delay(250L)
                     refreshOnce(manual = false)
                 }
-                .onFailure { _toastFlow.tryEmit(it.message ?: "操作失败") }
+                .onFailure { _toastFlow.tryEmit(it.message ?: tr("操作失败", "Operation failed")) }
         }
     }
 
@@ -481,10 +510,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repo.setStartup(st.currentUrl, next)
                 .onSuccess {
-                    _toastFlow.tryEmit(if (next) "已开启开机自启" else "已关闭开机自启")
+                    _toastFlow.tryEmit(
+                        if (next) tr("已开启开机自启", "Launch at startup enabled")
+                        else tr("已关闭开机自启", "Launch at startup disabled")
+                    )
                     refreshOnce(manual = false)
                 }
-                .onFailure { _toastFlow.tryEmit(it.message ?: "设置失败") }
+                .onFailure { _toastFlow.tryEmit(it.message ?: tr("设置失败", "Setting failed")) }
         }
     }
 
@@ -495,11 +527,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repo.deleteSession(st.currentUrl, target)
                 .onSuccess {
-                    _toastFlow.tryEmit("已删除会话 $target")
+                    _toastFlow.tryEmit(tr("已删除会话 $target", "Deleted session $target"))
                     _uiState.update { it.copy(selectedSession = "", fullHistory = false) }
                     refreshOnce(manual = true)
                 }
-                .onFailure { _toastFlow.tryEmit(it.message ?: "删除失败") }
+                .onFailure { _toastFlow.tryEmit(it.message ?: tr("删除失败", "Delete failed")) }
         }
     }
 
@@ -516,7 +548,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
                 }
-                .onFailure { _toastFlow.tryEmit(it.message ?: "读取电脑端配置失败") }
+                .onFailure { _toastFlow.tryEmit(it.message ?: tr("读取电脑端配置失败", "Failed to load host settings")) }
         }
     }
 
@@ -534,9 +566,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repo.saveConfig(st.currentUrl, st.settingsConfig)
                 .onSuccess {
                     _uiState.update { it.copy(showSettings = false) }
-                    _toastFlow.tryEmit("设置已保存到电脑端（下次采集生效）")
+                    _toastFlow.tryEmit(tr("设置已保存到电脑端（下次采集生效）", "Settings saved to host (effective next capture)"))
                 }
-                .onFailure { _toastFlow.tryEmit(it.message ?: "保存设置失败") }
+                .onFailure { _toastFlow.tryEmit(it.message ?: tr("保存设置失败", "Failed to save settings")) }
         }
     }
 
@@ -570,7 +602,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun loadIncidentPreview(name: String, file: String) {
         repo.fetchIncidentPreview(_uiState.value.currentUrl, name, file)
             .onSuccess { txt -> _uiState.update { it.copy(previewText = txt) } }
-            .onFailure { _uiState.update { it.copy(previewText = "(读取失败)") } }
+            .onFailure { _uiState.update { it.copy(previewText = tr("(读取失败)", "(Load failed)")) } }
     }
 
     fun emitToast(msg: String) {

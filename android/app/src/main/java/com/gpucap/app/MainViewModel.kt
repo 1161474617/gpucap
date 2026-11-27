@@ -19,6 +19,8 @@ enum class AppPage {
 
 data class MainUiState(
     val ready: Boolean = false,
+    val isZh: Boolean = false,
+    val showLangPicker: Boolean = false,
     val page: AppPage = AppPage.Connect,
     val currentUrl: String = "",
     val inputUrl: String = "",
@@ -46,9 +48,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repo.migrateLegacyIfNeeded()
             val saved = repo.lastUrlFlow.first()
             val history = repo.historyFlow.first()
+            val rawLang = repo.appLangRawFlow.first()
+            val (initZh, needPicker) = when (rawLang) {
+                "zh-CN" -> true to false
+                "en" -> false to false
+                else -> false to true
+            }
             _uiState.update {
                 it.copy(
                     ready = true,
+                    isZh = initZh,
+                    showLangPicker = needPicker,
                     page = if (saved.isNotEmpty()) AppPage.Web else AppPage.Connect,
                     currentUrl = saved,
                     inputUrl = saved,
@@ -68,6 +78,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun tr(zh: String, en: String): String = if (_uiState.value.isZh) zh else en
+
+    fun setAppLang(zh: Boolean) {
+        _uiState.update { it.copy(isZh = zh, showLangPicker = false) }
+        viewModelScope.launch { repo.setAppLang(if (zh) "zh-CN" else "en") }
+    }
+
     fun onInputChange(value: String) {
         _uiState.update { it.copy(inputUrl = value) }
     }
@@ -75,7 +92,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun connectManual() {
         val norm = repo.normalizeUrl(_uiState.value.inputUrl)
         if (norm == null) {
-            _toastFlow.tryEmit("请输入有效的 IP 或网址")
+            _toastFlow.tryEmit(tr("请输入有效的 IP 或网址", "Please enter a valid IP or URL"))
             return
         }
         openAndSave(norm)

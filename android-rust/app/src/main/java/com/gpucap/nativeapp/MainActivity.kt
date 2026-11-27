@@ -18,10 +18,20 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -29,6 +39,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -37,6 +48,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -58,6 +72,7 @@ class MainActivity : ComponentActivity() {
             GpuCapTheme {
                 val vm: MainViewModel = viewModel()
                 val uiState by vm.uiState.collectAsStateWithLifecycle()
+                val strings = stringsFor(uiState.appLang)
                 val scope = rememberCoroutineScope()
                 val snackbarHostState = remember { SnackbarHostState() }
                 var lastBackAt by remember { mutableLongStateOf(0L) }
@@ -85,8 +100,8 @@ class MainActivity : ComponentActivity() {
                     } else {
                         scope.launch {
                             val res = snackbarHostState.showSnackbar(
-                                message = "需要相机权限才能扫描二维码",
-                                actionLabel = "去设置",
+                                message = strings.t("需要相机权限才能扫描二维码", "Camera permission is required to scan QR codes"),
+                                actionLabel = strings.t("去设置", "Settings"),
                                 duration = SnackbarDuration.Long,
                             )
                             if (res == SnackbarResult.ActionPerformed) {
@@ -123,79 +138,139 @@ class MainActivity : ComponentActivity() {
                                 finish()
                             } else {
                                 lastBackAt = now
-                                vm.emitToast("再按一次返回键退出，或点击右上角「切换」")
+                                vm.emitToast(strings.t("再按一次返回键退出，或点击右上角「切换」", "Press back again to exit, or tap Switch"))
                             }
                         }
                         AppPage.Connect -> finish()
                     }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(GpuColors.Bg),
-                ) {
-                    if (uiState.ready) {
-                        AnimatedContent(
-                            targetState = uiState.page,
-                            transitionSpec = { fadeIn() togetherWith fadeOut() },
-                            label = "page_transition",
-                        ) { target ->
-                            when (target) {
-                                AppPage.Connect -> ConnectScreen(
-                                    inputUrl = uiState.inputUrl,
-                                    onInputChange = vm::onInputChange,
-                                    historyUrls = uiState.historyUrls,
-                                    pingMap = uiState.pingMap,
-                                    discoveredHosts = uiState.discoveredHosts,
-                                    discoveringHosts = uiState.discoveringHosts,
-                                    dualChoice = uiState.dualChoice,
-                                    onDismissDualChoice = vm::dismissDualChoice,
-                                    onConnectManual = vm::connectManual,
-                                    onStartQrScan = ::startQrScan,
-                                    onSelectHistory = vm::openAndSave,
-                                    onRemoveHistory = vm::removeHistory,
-                                    onPingAll = vm::pingAll,
-                                    onDiscoverHosts = vm::discoverLanHosts,
-                                )
+                CompositionLocalProvider(LocalStrings provides strings) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(GpuColors.Bg),
+                    ) {
+                        if (uiState.ready) {
+                            AnimatedContent(
+                                targetState = uiState.page,
+                                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                                label = "page_transition",
+                            ) { target ->
+                                when (target) {
+                                    AppPage.Connect -> ConnectScreen(
+                                        inputUrl = uiState.inputUrl,
+                                        onInputChange = vm::onInputChange,
+                                        historyUrls = uiState.historyUrls,
+                                        pingMap = uiState.pingMap,
+                                        discoveredHosts = uiState.discoveredHosts,
+                                        discoveringHosts = uiState.discoveringHosts,
+                                        dualChoice = uiState.dualChoice,
+                                        onDismissDualChoice = vm::dismissDualChoice,
+                                        onConnectManual = vm::connectManual,
+                                        onStartQrScan = ::startQrScan,
+                                        onSelectHistory = vm::openAndSave,
+                                        onRemoveHistory = vm::removeHistory,
+                                        onPingAll = vm::pingAll,
+                                        onDiscoverHosts = vm::discoverLanHosts,
+                                        isZh = strings.isZh,
+                                        onToggleLang = {
+                                            vm.setAppLang(if (strings.isZh) AppLang.EN else AppLang.ZH_CN)
+                                        },
+                                    )
 
-                                AppPage.Monitor -> NativeMonitorScreen(
-                                    uiState = uiState,
-                                    vm = vm,
-                                )
+                                    AppPage.Monitor -> NativeMonitorScreen(
+                                        uiState = uiState,
+                                        vm = vm,
+                                    )
 
-                                AppPage.QrScan -> QrScannerScreen(
-                                    onQrDetected = vm::handleQrDetected,
-                                    onToast = vm::emitToast,
-                                    onClose = vm::closeQrScanner,
-                                )
+                                    AppPage.QrScan -> QrScannerScreen(
+                                        onQrDetected = vm::handleQrDetected,
+                                        onToast = vm::emitToast,
+                                        onClose = vm::closeQrScanner,
+                                    )
 
-                                AppPage.GpuTable -> GpuTableScreen(
-                                    uiState = uiState,
-                                    vm = vm,
-                                )
+                                    AppPage.GpuTable -> GpuTableScreen(
+                                        uiState = uiState,
+                                        vm = vm,
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    SnackbarHost(
-                        hostState = snackbarHostState,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .navigationBarsPadding(),
-                    ) { data ->
-                        Snackbar(
-                            containerColor = GpuColors.SurfaceBtn,
-                            contentColor = GpuColors.Text,
-                            action = {
-                                data.visuals.actionLabel?.let { label ->
-                                    TextButton(onClick = { data.performAction() }) {
-                                        Text(label, color = GpuColors.Accent)
+                        if (uiState.ready && uiState.showLangPicker) {
+                            AlertDialog(
+                                onDismissRequest = {},
+                                containerColor = GpuColors.Card,
+                                title = {
+                                    Text(
+                                        text = "Choose Language / 请选择语言",
+                                        color = androidx.compose.ui.graphics.Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 17.sp,
+                                    )
+                                },
+                                text = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Text(
+                                            text = "Select your preferred display language. You can change this anytime.\n请选择显示语言，之后可随时在界面切换。",
+                                            color = GpuColors.Dim,
+                                            fontSize = 13.sp,
+                                        )
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            modifier = Modifier.fillMaxWidth(),
+                                        ) {
+                                            Button(
+                                                onClick = { vm.setAppLang(AppLang.EN) },
+                                                shape = RoundedCornerShape(10.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = GpuColors.Accent,
+                                                    contentColor = GpuColors.AccentDark,
+                                                ),
+                                                contentPadding = PaddingValues(vertical = 11.dp),
+                                                modifier = Modifier.weight(1f),
+                                            ) {
+                                                Text("English", fontWeight = FontWeight.Bold)
+                                            }
+                                            Button(
+                                                onClick = { vm.setAppLang(AppLang.ZH_CN) },
+                                                shape = RoundedCornerShape(10.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = GpuColors.Emerald,
+                                                    contentColor = GpuColors.EmeraldText,
+                                                ),
+                                                contentPadding = PaddingValues(vertical = 11.dp),
+                                                modifier = Modifier.weight(1f),
+                                            ) {
+                                                Text("简体中文", fontWeight = FontWeight.Bold)
+                                            }
+                                        }
                                     }
-                                }
-                            },
-                        ) {
-                            Text(data.visuals.message)
+                                },
+                                confirmButton = {},
+                            )
+                        }
+
+                        SnackbarHost(
+                            hostState = snackbarHostState,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .navigationBarsPadding(),
+                        ) { data ->
+                            Snackbar(
+                                containerColor = GpuColors.SurfaceBtn,
+                                contentColor = GpuColors.Text,
+                                action = {
+                                    data.visuals.actionLabel?.let { label ->
+                                        TextButton(onClick = { data.performAction() }) {
+                                            Text(label, color = GpuColors.Accent)
+                                        }
+                                    }
+                                },
+                            ) {
+                                Text(data.visuals.message)
+                            }
                         }
                     }
                 }

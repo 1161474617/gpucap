@@ -73,7 +73,10 @@ fun ConnectScreen(
     onRemoveHistory: (String) -> Unit,
     onPingAll: () -> Unit,
     onDiscoverHosts: () -> Unit,
+    isZh: Boolean = false,
+    onToggleLang: () -> Unit = {},
 ) {
+    val s = LocalStrings.current
     BoxWithConstraints(
         contentAlignment = Alignment.TopCenter,
         modifier = Modifier
@@ -88,7 +91,7 @@ fun ConnectScreen(
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 SectionCard {
                     Text(
-                        text = "连接电脑端主机",
+                        text = s.connectHostTitle,
                         color = Color.White,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
@@ -100,7 +103,7 @@ fun ConnectScreen(
                         singleLine = true,
                         placeholder = {
                             Text(
-                                text = "例如 192.168.1.100 或 [240e:...]:8787",
+                                text = s.t("例如 192.168.1.100 或 [240e:...]:8787", "e.g. 192.168.1.100 or [240e:...]:8787"),
                                 color = GpuColors.Dim,
                                 fontSize = 13.sp,
                             )
@@ -110,7 +113,7 @@ fun ConnectScreen(
                                 IconButton(onClick = { onInputChange("") }) {
                                     Icon(
                                         imageVector = Icons.Rounded.Clear,
-                                        contentDescription = "清空",
+                                        contentDescription = s.t("清空", "Clear"),
                                         tint = GpuColors.Dim,
                                     )
                                 }
@@ -150,7 +153,7 @@ fun ConnectScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "保存并连接",
+                            text = s.saveAndConnect,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                         )
@@ -159,14 +162,17 @@ fun ConnectScreen(
 
                 SectionCard {
                     Text(
-                        text = "扫码快速连接",
+                        text = s.t("扫码快速连接", "Quick QR Connect"),
                         color = Color.White,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "支持识别电脑/网页端二维码（同时包含 IPv4 与 IPv6 时可自由选择），也支持从相册选图识别",
+                        text = s.t(
+                            "支持识别电脑/网页端二维码（同时包含 IPv4 与 IPv6 时可自由选择），也支持从相册选图识别",
+                            "Scan desktop/web QR codes (choose IPv4 or IPv6 for dual-stack) or pick an image from gallery",
+                        ),
                         color = GpuColors.Dim,
                         fontSize = 12.sp,
                         lineHeight = 17.sp,
@@ -189,7 +195,7 @@ fun ConnectScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "扫一扫二维码",
+                            text = s.scanQrConnect,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                         )
@@ -202,7 +208,7 @@ fun ConnectScreen(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            text = "局域网自动发现",
+                            text = s.lanDiscovery,
                             color = Color.White,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
@@ -210,7 +216,7 @@ fun ConnectScreen(
                         )
                         TextButton(onClick = onDiscoverHosts, enabled = !discoveringHosts) {
                             Text(
-                                text = if (discoveringHosts) "扫描中..." else "重新扫描",
+                                text = if (discoveringHosts) s.t("扫描中...", "Scanning...") else s.t("重新扫描", "Rescan"),
                                 color = GpuColors.Accent,
                                 fontSize = 12.sp,
                             )
@@ -218,7 +224,10 @@ fun ConnectScreen(
                     }
                     if (discoveredHosts.isEmpty()) {
                         Text(
-                            text = if (discoveringHosts) "正在扫描局域网内的 GPUCap 主机 (UDP 8788)..." else "未发现局域网在线主机，请确保电脑端已启动服务且与平板在同一网段",
+                            text = if (discoveringHosts) s.t(
+                                "正在扫描局域网内的 GPUCap 主机 (UDP 8788)...",
+                                "Scanning LAN for GPUCap hosts (UDP 8788)...",
+                            ) else s.noLanHosts,
                             color = GpuColors.Dim,
                             fontSize = 12.sp,
                         )
@@ -238,7 +247,7 @@ fun ConnectScreen(
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = host.host.ifBlank { "GPUCap 主机" },
+                                                text = host.host.ifBlank { s.t("GPUCap 主机", "GPUCap Host") },
                                                 color = Color.White,
                                                 fontSize = 13.5.sp,
                                                 fontWeight = FontWeight.Bold,
@@ -251,7 +260,7 @@ fun ConnectScreen(
                                             )
                                         }
                                         Text(
-                                            text = "一键连接",
+                                            text = s.t("一键连接", "Connect"),
                                             color = GpuColors.EmeraldLight,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
@@ -272,7 +281,7 @@ fun ConnectScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        text = "历史连接记录",
+                        text = s.recentHosts,
                         color = Color.White,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
@@ -296,7 +305,7 @@ fun ConnectScreen(
                                 modifier = Modifier.size(15.dp),
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "全部 Ping", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                            Text(text = s.pingAll, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -305,7 +314,7 @@ fun ConnectScreen(
 
                 if (historyUrls.isEmpty()) {
                     Text(
-                        text = "暂无历史记录",
+                        text = s.noRecentHosts,
                         color = GpuColors.Dim,
                         fontSize = 12.sp,
                     )
@@ -352,18 +361,32 @@ fun ConnectScreen(
                     }
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "GPUCap 原生监控",
+                        text = s.appTitle,
                         color = Color.White,
                         fontSize = 21.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "纯原生界面直连服务端 API，零 WebView 开销",
+                        text = s.heroSubtitle,
                         color = GpuColors.Dim,
                         fontSize = 12.sp,
+                    )
+                }
+                Surface(
+                    onClick = onToggleLang,
+                    shape = RoundedCornerShape(9.dp),
+                    color = GpuColors.AccentBg,
+                    border = BorderStroke(1.dp, GpuColors.AccentBorder),
+                ) {
+                    Text(
+                        text = if (isZh) "EN" else "中文",
+                        color = GpuColors.Accent,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     )
                 }
             }
@@ -391,7 +414,7 @@ fun ConnectScreen(
             textContentColor = GpuColors.Text,
             title = {
                 Text(
-                    text = "选择连接方式",
+                    text = s.t("选择连接方式", "Choose Connection"),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -399,18 +422,18 @@ fun ConnectScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "检测到二维码同时包含以下两个地址：",
+                        text = s.t("检测到二维码同时包含以下两个地址：", "Both IPv4 and IPv6 addresses found in QR code:"),
                         color = GpuColors.Dim,
                         fontSize = 12.5.sp,
                     )
                     DualChoiceOption(
-                        badge = "局域网 IPv4（同 Wi-Fi 推荐）",
+                        badge = s.t("局域网 IPv4（同 Wi-Fi 推荐）", "LAN IPv4 (Recommended on same Wi-Fi)"),
                         url = dualChoice.ipv4,
                         accent = GpuColors.Accent,
                         onClick = { onSelectHistory(dualChoice.ipv4) },
                     )
                     DualChoiceOption(
-                        badge = "外网 IPv6（跨网络访问）",
+                        badge = s.t("外网 IPv6（跨网络访问）", "Public IPv6 (Cross-network)"),
                         url = dualChoice.ipv6,
                         accent = GpuColors.Emerald,
                         onClick = { onSelectHistory(dualChoice.ipv6) },
@@ -420,7 +443,7 @@ fun ConnectScreen(
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = onDismissDualChoice) {
-                    Text("取消", color = GpuColors.Dim)
+                    Text(s.cancelBtn, color = GpuColors.Dim)
                 }
             },
         )
@@ -514,11 +537,12 @@ private fun HistoryRow(
 
 @Composable
 private fun PingBadge(status: PingStatus) {
+    val s = LocalStrings.current
     val (label, fg, bg, border) = when (status) {
-        PingStatus.Idle -> Quad("待测", GpuColors.Dim, GpuColors.SurfaceBtn, GpuColors.Border)
-        PingStatus.Checking -> Quad("测速...", GpuColors.Accent, GpuColors.AccentBg, GpuColors.AccentBorder)
+        PingStatus.Idle -> Quad(s.t("待测", "Idle"), GpuColors.Dim, GpuColors.SurfaceBtn, GpuColors.Border)
+        PingStatus.Checking -> Quad(s.t("测速...", "Ping..."), GpuColors.Accent, GpuColors.AccentBg, GpuColors.AccentBorder)
         is PingStatus.Online -> Quad("${status.latencyMs}ms", GpuColors.EmeraldLight, GpuColors.EmeraldBg, GpuColors.EmeraldBorder)
-        PingStatus.Offline -> Quad("离线", GpuColors.BadLight, GpuColors.BadBg, GpuColors.BadBorder)
+        PingStatus.Offline -> Quad(s.statusOffline, GpuColors.BadLight, GpuColors.BadBg, GpuColors.BadBorder)
     }
     val animBg by animateColorAsState(bg, label = "ping_bg")
     Surface(

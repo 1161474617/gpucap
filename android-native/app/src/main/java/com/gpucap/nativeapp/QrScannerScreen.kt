@@ -83,6 +83,7 @@ fun QrScannerScreen(
     onToast: (String) -> Unit,
     onClose: () -> Unit,
 ) {
+    val s = LocalStrings.current
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val delivered = remember { AtomicBoolean(false) }
@@ -110,14 +111,14 @@ fun QrScannerScreen(
                     if (hit != null && delivered.compareAndSet(false, true)) {
                         onQrDetected(hit)
                     } else if (hit == null) {
-                        onToast("未在所选图片中识别到有效二维码")
+                        onToast(s.t("未在所选图片中识别到有效二维码", "No valid QR code found in selected image"))
                     }
                 }
                 .addOnFailureListener {
-                    onToast("图片二维码识别失败")
+                    onToast(s.t("图片二维码识别失败", "Failed to scan QR code from image"))
                 }
         } catch (_: Exception) {
-            onToast("无法读取所选图片")
+            onToast(s.t("无法读取所选图片", "Could not read selected image"))
         }
     }
 
@@ -278,12 +279,12 @@ fun QrScannerScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Close,
-                        contentDescription = "关闭",
+                        contentDescription = s.closeBtn,
                         tint = GpuColors.Text,
                         modifier = Modifier.size(16.dp),
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "关闭", color = GpuColors.Text, fontSize = 13.sp)
+                    Text(text = s.closeBtn, color = GpuColors.Text, fontSize = 13.sp)
                 }
             }
 
@@ -292,7 +293,7 @@ fun QrScannerScreen(
                 modifier = Modifier.weight(1f),
             ) {
                 Text(
-                    text = "扫描连接二维码",
+                    text = s.t("扫描连接二维码", "Scan QR Code"),
                     color = Color.White,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
@@ -311,12 +312,12 @@ fun QrScannerScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.PhotoLibrary,
-                        contentDescription = "相册",
+                        contentDescription = s.t("相册", "Gallery"),
                         tint = GpuColors.Accent,
                         modifier = Modifier.size(16.dp),
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "相册", color = GpuColors.Accent, fontSize = 13.sp)
+                    Text(text = s.t("相册", "Gallery"), color = GpuColors.Accent, fontSize = 13.sp)
                 }
             }
         }
@@ -331,7 +332,7 @@ fun QrScannerScreen(
                 .padding(horizontal = 24.dp, vertical = 34.dp),
         ) {
             Text(
-                text = "对准 GPUCap 二维码，识别后将自动连接",
+                text = s.t("对准 GPUCap 二维码，识别后将自动连接", "Point at GPUCap QR code to connect automatically"),
                 color = GpuColors.Text,
                 fontSize = 13.sp,
             )
@@ -361,7 +362,7 @@ fun QrScannerScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (torchOn) "关闭手电筒" else "打开手电筒",
+                        text = if (torchOn) s.t("关闭手电筒", "Torch Off") else s.t("打开手电筒", "Torch On"),
                         fontSize = 13.sp,
                     )
                 }

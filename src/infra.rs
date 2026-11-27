@@ -140,6 +140,7 @@ pub struct Config {
     pub web_port: u16,
     pub auth_pin: String,
     pub read_only_remote: bool,
+    pub language: String,
 }
 
 impl Default for Config {
@@ -168,6 +169,7 @@ impl Default for Config {
             web_port: 8787,
             auth_pin: String::new(),
             read_only_remote: false,
+            language: String::new(),
         }
     }
 }

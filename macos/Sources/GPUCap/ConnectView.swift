@@ -21,26 +21,49 @@ struct ConnectView: View {
                         .cornerRadius(12)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("GPUCap 无线监控")
+                        Text(state.tr("GPUCap 无线监控", "GPUCap Wireless Monitor"))
                             .font(.system(size: 20, weight: .bold))
                             .foregroundColor(.white)
-                        Text("与 Windows 主机处于同一局域网并开启网页服务即可实时监控")
+                        Text(state.tr(
+                            "与 Windows 主机处于同一局域网并开启网页服务即可实时监控",
+                            "Connect over LAN with the Windows host web service enabled"
+                        ))
                             .font(.system(size: 12))
                             .foregroundColor(Theme.dim)
                     }
                     Spacer()
+
+                    Button {
+                        state.setLanguage(state.isZh ? .en : .zhCn)
+                    } label: {
+                        Text(state.isZh ? "EN" : "中文")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Theme.accent)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color(hex: 0x16263A))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color(hex: 0x264363), lineWidth: 1)
+                            )
+                            .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(.bottom, 4)
 
                 // 1. 手动输入连接主机卡片
                 CardBox {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("连接电脑端主机")
+                        Text(state.tr("连接电脑端主机", "Connect to Host"))
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(.white)
 
                         HStack(spacing: 8) {
-                            TextField("输入 IP 或网址，例如 192.168.1.100:8787", text: $state.inputUrl)
+                            TextField(
+                                state.tr("输入 IP 或网址，例如 192.168.1.100:8787", "Enter IP or URL, e.g. 192.168.1.100:8787"),
+                                text: $state.inputUrl
+                            )
                                 .textFieldStyle(.plain)
                                 .font(.system(size: 14, design: .monospaced))
                                 .foregroundColor(.white)
@@ -66,7 +89,7 @@ struct ConnectView: View {
                         .cornerRadius(10)
 
                         Button(action: connectManual) {
-                            Text("保存并连接")
+                            Text(state.tr("保存并连接", "Save & Connect"))
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(Theme.emeraldText)
                                 .frame(maxWidth: .infinity)
@@ -81,12 +104,12 @@ struct ConnectView: View {
                 // 2. 历史连接记录卡片
                 CardBox {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("历史连接记录")
+                        Text(state.tr("历史连接记录", "Recent Hosts"))
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(.white)
 
                         if state.historyUrls.isEmpty {
-                            Text("暂无历史记录")
+                            Text(state.tr("暂无历史记录", "No recent hosts"))
                                 .font(.system(size: 12))
                                 .foregroundColor(Theme.dim)
                         } else {
@@ -118,7 +141,7 @@ struct ConnectView: View {
                                         Button {
                                             state.removeHistory(url)
                                         } label: {
-                                            Text("移除")
+                                            Text(state.tr("移除", "Remove"))
                                                 .font(.system(size: 12))
                                                 .foregroundColor(Color(hex: 0xFCA5A5))
                                                 .padding(.horizontal, 10)
@@ -148,7 +171,7 @@ struct ConnectView: View {
 
     private func connectManual() {
         guard let norm = state.normalizeUrl(state.inputUrl) else {
-            state.showToast("请输入有效的 IP 或网址")
+            state.showToast(state.tr("请输入有效的 IP 或网址", "Please enter a valid IP or URL"))
             return
         }
         state.saveAndOpen(norm)

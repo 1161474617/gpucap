@@ -33,9 +33,22 @@ struct WebMonitorView: View {
                 .cornerRadius(99)
 
                 Button {
+                    state.setLanguage(state.isZh ? .en : .zhCn)
+                } label: {
+                    Text(state.isZh ? "EN" : "中文")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Theme.accent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color(hex: 0x16263A))
+                        .cornerRadius(9)
+                }
+                .buttonStyle(.plain)
+
+                Button {
                     state.reloadWeb()
                 } label: {
-                    Text("刷新")
+                    Text(state.tr("刷新", "Reload"))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(Theme.text)
                         .padding(.horizontal, 12)
@@ -48,7 +61,7 @@ struct WebMonitorView: View {
                 Button {
                     state.showConnectPage()
                 } label: {
-                    Text("切换主机")
+                    Text(state.tr("切换主机", "Switch Host"))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(Theme.accent)
                         .padding(.horizontal, 12)
@@ -92,7 +105,7 @@ struct WebMonitorView: View {
                         Theme.bg
                         CardBox {
                             VStack(spacing: 14) {
-                                Text("无法连接到 GPUCap 服务")
+                                Text(state.tr("无法连接到 GPUCap 服务", "Unable to Connect to GPUCap"))
                                     .font(.system(size: 17, weight: .bold))
                                     .foregroundColor(Color(hex: 0xFCA5A5))
 
@@ -104,7 +117,7 @@ struct WebMonitorView: View {
                                 Button {
                                     state.openWebUrl(state.currentUrl)
                                 } label: {
-                                    Text("重新连接")
+                                    Text(state.tr("重新连接", "Reconnect"))
                                         .font(.system(size: 14, weight: .bold))
                                         .foregroundColor(Theme.emeraldText)
                                         .frame(maxWidth: .infinity)
@@ -117,7 +130,7 @@ struct WebMonitorView: View {
                                 Button {
                                     state.showConnectPage()
                                 } label: {
-                                    Text("返回选择主机")
+                                    Text(state.tr("返回选择主机", "Back to Host Selection"))
                                         .font(.system(size: 14, weight: .bold))
                                         .foregroundColor(Theme.accent)
                                         .frame(maxWidth: .infinity)
@@ -161,6 +174,11 @@ struct WebViewContainer: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
+        // 同步将 macOS 已选择的语言写入网页端 localStorage，避免重复弹出语言选择框
+        let langJs = "if (!localStorage.getItem('gpucap_lang')) { localStorage.setItem('gpucap_lang', '\(state.lang.rawValue)'); }"
+        config.userContentController.addUserScript(
+            WKUserScript(source: langJs, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+        )
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
@@ -236,7 +254,10 @@ struct WebViewContainer: NSViewRepresentable {
             Task { @MainActor in
                 state.loadProgress = 1.0
                 state.connectionStatus = .failed
-                state.errorMessage = "无法连接到 \(state.currentUrl)\n请检查 Windows 端是否已开启「网页服务」，且 Mac 与电脑处于同一局域网。"
+                state.errorMessage = state.tr(
+                    "无法连接到 \(state.currentUrl)\n请检查 Windows 端是否已开启「网页服务」，且 Mac 与电脑处于同一局域网。",
+                    "Could not connect to \(state.currentUrl).\nMake sure the Windows host web service is running and both devices are on the same LAN."
+                )
             }
         }
 
@@ -282,13 +303,13 @@ struct WebViewContainer: NSViewRepresentable {
         func downloadDidFinish(_ download: WKDownload) {
             let name = pendingDownloadName
             Task { @MainActor in
-                state.showToast("已保存到「下载」：\(name)")
+                state.showToast(state.tr("已保存到「下载」：\(name)", "Saved to Downloads: \(name)"))
             }
         }
 
         func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
             Task { @MainActor in
-                state.showToast("下载失败：\(error.localizedDescription)")
+                state.showToast(state.tr("下载失败：\(error.localizedDescription)", "Download failed: \(error.localizedDescription)"))
             }
         }
     }

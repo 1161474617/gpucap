@@ -207,7 +207,47 @@ struct SettingsDraft {
     gpus: Vec<(usize, String)>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum UiLang {
+    Zh,
+    En,
+}
+
+impl UiLang {
+    fn from_cfg(s: &str) -> Self {
+        if s.trim().eq_ignore_ascii_case("en") {
+            Self::En
+        } else {
+            Self::Zh
+        }
+    }
+}
+
+fn tr(lang: UiLang, zh: &'static str, en: &'static str) -> &'static str {
+    if lang == UiLang::En {
+        en
+    } else {
+        zh
+    }
+}
+
+fn tr_thr(lang: UiLang, s: &str) -> String {
+    if lang != UiLang::En || s.is_empty() || s == "—" {
+        return s.to_string();
+    }
+    s.replace("功耗墙", "PowerCap")
+        .replace("温度墙", "ThermalCap")
+        .replace("软件温控", "SWThermal")
+        .replace("硬件降频", "HWSlowdown")
+        .replace("同步限频", "SyncBoost")
+        .replace("显示限制", "DisplayCap")
+        .replace("应用限频", "AppClock")
+        .replace("空闲", "Idle")
+}
+
 pub struct GpuCapApp {
+    lang: UiLang,
+    show_lang_picker: bool,
     session: Option<PathBuf>,
     sessions: Vec<PathBuf>,
     selected_idx: usize,
@@ -325,7 +365,12 @@ impl GpuCapApp {
             }
         });
 
+        let lang = UiLang::from_cfg(&cfg.language);
+        let show_lang_picker = cfg.language.trim().is_empty();
+
         Self {
+            lang,
+            show_lang_picker,
             tail_gpu: session
                 .as_ref()
                 .map(|s| Tail::new(s.join("gpu.csv"), false)),
@@ -1070,12 +1115,12 @@ impl GpuCapApp {
         if self.live_viewing {
             self.heartbeat = if self.live_running {
                 HeartbeatState {
-                    text: "● 实时监测中（仅内存日志）".to_string(),
+                    text: tr(self.lang, "● 实时监测中（仅内存日志）", "● Live Monitor (Memory Only)").to_string(),
                     color: COL_OK,
                 }
             } else {
                 HeartbeatState {
-                    text: "● 实时监测已停止（保留内存日志）".to_string(),
+                    text: tr(self.lang, "● 实时监测已停止（保留内存日志）", "● Live Monitor Stopped").to_string(),
                     color: COL_WARN,
                 }
             };
@@ -1085,9 +1130,9 @@ impl GpuCapApp {
         if !self.collector_running {
             self.heartbeat = HeartbeatState {
                 text: if self.session.is_some() {
-                    "● 未在采集（查看历史）".to_string()
+                    tr(self.lang, "● 未在采集（查看历史）", "● Idle (Viewing History)").to_string()
                 } else {
-                    "● 未在采集（暂无会话）".to_string()
+                    tr(self.lang, "● 未在采集（暂无会话）", "● Idle (No Session)").to_string()
                 },
                 color: COL_DIM,
             };
@@ -1096,7 +1141,7 @@ impl GpuCapApp {
 
         let Some(ref session) = self.session else {
             self.heartbeat = HeartbeatState {
-                text: "● 采集器初始化中...".to_string(),
+                text: tr(self.lang, "● 采集器初始化中...", "● Initializing...").to_string(),
                 color: COL_WARN,
             };
             return;
@@ -1114,7 +1159,7 @@ impl GpuCapApp {
             self.hb_fail += 1;
             if self.hb_fail >= 3 || !hb_path.exists() {
                 self.heartbeat = HeartbeatState {
-                    text: "● 无心跳（采集器未运行）".to_string(),
+                    text: tr(self.lang, "● 无心跳（采集器未运行）", "● No Heartbeat (Stopped)").to_string(),
                     color: COL_BAD,
                 };
             }
@@ -1124,11 +1169,15 @@ impl GpuCapApp {
         self.heartbeat = match age {
             None => unreachable!(),
             Some(a) if a < 5.0 => HeartbeatState {
-                text: "● 采集器运行中".to_string(),
+                text: tr(self.lang, "● 采集器运行中", "● Collector Running").to_string(),
                 color: COL_OK,
             },
             Some(a) => HeartbeatState {
-                text: format!("● 心跳延迟 {:.0}s", a),
+                text: if matches!(self.lang, UiLang::Zh) {
+                    format!("● 心跳延迟 {:.0}s", a)
+                } else {
+                    format!("● Heartbeat Lag {:.0}s", a)
+                },
                 color: COL_WARN,
             },
         };
@@ -1137,6 +1186,7 @@ impl GpuCapApp {
     /// 趋势曲线页：一行两个参数，含 8 项显卡指标 + 2 项内存/内核池指标，并标出告警线
     fn render_trend(
         ui: &mut egui::Ui,
+        lang: UiLang,
         rows: &VecDeque<GpuRow>,
         mem_points: &VecDeque<MemPoint>,
         alerts: &VecDeque<LogEntry>,
@@ -1144,24 +1194,24 @@ impl GpuCapApp {
         paused: &mut bool,
     ) {
         ui.horizontal(|ui| {
-            ui.label(RichText::new("时间窗口：").color(COL_DIM).size(13.0));
+            ui.label(RichText::new(tr(lang, "时间窗口：", "Window:")).color(COL_DIM).size(13.0));
             for (n, label) in [
-                (15usize, "15 秒"),
-                (20, "20 秒"),
-                (30, "30 秒"),
-                (60, "60 秒"),
+                (15usize, tr(lang, "15 秒", "15s")),
+                (20, tr(lang, "20 秒", "20s")),
+                (30, tr(lang, "30 秒", "30s")),
+                (60, tr(lang, "60 秒", "60s")),
             ] {
                 if ui.selectable_label(*window == n, label).clicked() {
                     *window = n;
                 }
             }
-            if ui.button("定位到末尾（黑屏前）").clicked() {
+            if ui.button(tr(lang, "定位到末尾（黑屏前）", "Jump to Latest")).clicked() {
                 *paused = false;
                 *window = 30;
             }
             ui.add_space(8.0);
             ui.label(
-                RichText::new("点上方标数值 · 红色虚线为告警发生时刻")
+                RichText::new(tr(lang, "点上方标数值 · 红色虚线为告警发生时刻", "Hover for values · Red dashed line = Alert"))
                     .color(COL_DIM)
                     .size(12.0),
             );
@@ -1172,7 +1222,7 @@ impl GpuCapApp {
         let slice: Vec<&GpuRow> = rows.iter().skip(start).collect();
         if slice.is_empty() {
             ui.centered_and_justified(|ui| {
-                ui.label(RichText::new("暂无 GPU 数据").size(15.0).color(COL_DIM));
+                ui.label(RichText::new(tr(lang, "暂无 GPU 数据", "No GPU data")).size(15.0).color(COL_DIM));
             });
             return;
         }
@@ -1189,7 +1239,7 @@ impl GpuCapApp {
             .collect();
 
         // 构造所有 10 张图表卡片（8 项 GPU + 2 项内存）
-        let mut cards: Vec<CardData> = trend_metrics()
+        let mut cards: Vec<CardData> = trend_metrics(lang)
             .into_iter()
             .map(|m| {
                 let pts: Vec<[f64; 2]> = slice
@@ -1223,7 +1273,7 @@ impl GpuCapApp {
             .collect();
 
         cards.push(CardData {
-            name: "系统内存提交率",
+            name: tr(lang, "系统内存提交率", "Commit Charge"),
             unit: "%",
             decimals: 1,
             color: Color32::from_rgb(0x52, 0xc4, 0x1a),
@@ -1237,7 +1287,7 @@ impl GpuCapApp {
             alert_xs: m_alert_xs.clone(),
         });
         cards.push(CardData {
-            name: "非分页内核池",
+            name: tr(lang, "非分页内核池", "Non-Paged Pool"),
             unit: "MB",
             decimals: 0,
             color: Color32::from_rgb(0xfa, 0x8c, 0x16),
@@ -1256,9 +1306,9 @@ impl GpuCapApp {
             .show(ui, |ui| {
                 for pair in cards.chunks(2) {
                     ui.columns(2, |cols| {
-                        Self::render_trend_card(&mut cols[0], &pair[0]);
+                        Self::render_trend_card(&mut cols[0], &pair[0], lang);
                         if let Some(c2) = pair.get(1) {
-                            Self::render_trend_card(&mut cols[1], c2);
+                            Self::render_trend_card(&mut cols[1], c2, lang);
                         }
                     });
                     ui.add_space(10.0);
@@ -1267,7 +1317,7 @@ impl GpuCapApp {
     }
 
     /// 渲染单个参数的趋势卡片
-    fn render_trend_card(ui: &mut egui::Ui, c: &CardData) {
+    fn render_trend_card(ui: &mut egui::Ui, c: &CardData, lang: UiLang) {
         let (ymin, ymax) = c.pts.iter().fold((f64::MAX, f64::MIN), |(lo, hi), p| {
             (lo.min(p[1]), hi.max(p[1]))
         });
@@ -1335,8 +1385,10 @@ impl GpuCapApp {
                                     if !c.pts.is_empty() {
                                         right_job.append(
                                             &format!(
-                                                "   高 {}  低 {}",
+                                                "   {} {}  {} {}",
+                                                tr(lang, "高", "Hi"),
                                                 fmt_val(ymax, c.decimals),
+                                                tr(lang, "低", "Lo"),
                                                 fmt_val(ymin, c.decimals)
                                             ),
                                             0.0,
@@ -1360,7 +1412,7 @@ impl GpuCapApp {
                     if c.pts.is_empty() {
                         ui.allocate_ui(egui::vec2(plot_w, 165.0), |ui| {
                             ui.centered_and_justified(|ui| {
-                                ui.label(RichText::new("该参数暂无有效数据").color(COL_DIM));
+                                ui.label(RichText::new(tr(lang, "该参数暂无有效数据", "No valid data")).color(COL_DIM));
                             });
                         });
                         return;
@@ -1439,6 +1491,7 @@ impl GpuCapApp {
     fn render_log_table(
         ui: &mut egui::Ui,
         ctx: &egui::Context,
+        lang: UiLang,
         lines: &VecDeque<LogEntry>,
         only_bad: bool,
         filter: &mut String,
@@ -1453,22 +1506,30 @@ impl GpuCapApp {
             .collect();
 
         ui.horizontal(|ui| {
-            ui.label(RichText::new("筛选：").color(COL_DIM).size(13.0));
+            ui.label(RichText::new(tr(lang, "筛选：", "Filter:")).color(COL_DIM).size(13.0));
             ui.add(
                 egui::TextEdit::singleline(filter)
                     .desired_width(260.0)
-                    .hint_text("输入关键词（时间 / 来源 / 级别 / 消息）"),
+                    .hint_text(tr(lang, "输入关键词（时间 / 来源 / 级别 / 消息）", "Keyword (time / source / level / msg)")),
             );
-            if !filter.is_empty() && ui.button("清空").clicked() {
+            if !filter.is_empty() && ui.button(tr(lang, "清空", "Clear")).clicked() {
                 filter.clear();
             }
             ui.add_space(8.0);
             ui.label(
-                RichText::new(format!(
-                    "显示 {} / {} 条（点击行可复制）",
-                    filtered.len(),
-                    lines.len()
-                ))
+                RichText::new(if matches!(lang, UiLang::Zh) {
+                    format!(
+                        "显示 {} / {} 条（点击行可复制）",
+                        filtered.len(),
+                        lines.len()
+                    )
+                } else {
+                    format!(
+                        "Showing {} / {} (click row to copy)",
+                        filtered.len(),
+                        lines.len()
+                    )
+                })
                 .color(COL_DIM)
                 .size(12.0),
             );
@@ -1476,10 +1537,10 @@ impl GpuCapApp {
         ui.add_space(4.0);
 
         let heads = [
-            ("时间", 76.0),
-            ("级别", 96.0),
+            (tr(lang, "时间", "Time"), 76.0),
+            (tr(lang, "级别", "Level"), 96.0),
             (source_title, 220.0),
-            ("详情 / 消息", 300.0),
+            (tr(lang, "详情 / 消息", "Details / Message"), 300.0),
         ];
         let mut table = TableBuilder::new(ui)
             .striped(false)
@@ -1576,28 +1637,37 @@ impl GpuCapApp {
             Self::render_log_table(
                 ui,
                 ctx,
+                self.lang,
                 &self.alert_lines,
                 false,
                 &mut self.log_filter,
                 !self.paused,
-                "来源",
+                tr(self.lang, "来源", "Source"),
                 &mut self.status_hint,
             );
         });
 
         ui.separator();
 
+        let lang = self.lang;
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new(format!(
-                    "事故取证直览（共 {} 条）",
-                    self.incidents_cache.len()
-                ))
+                RichText::new(if matches!(lang, UiLang::Zh) {
+                    format!(
+                        "事故取证直览（共 {} 条）",
+                        self.incidents_cache.len()
+                    )
+                } else {
+                    format!(
+                        "Incident Forensics ({} bundles)",
+                        self.incidents_cache.len()
+                    )
+                })
                 .size(14.0)
                 .strong()
                 .color(COL_FG),
             );
-            if ui.button("刷新取证").clicked() {
+            if ui.button(tr(lang, "刷新取证", "Refresh")).clicked() {
                 self.refresh_incidents();
             }
             for fname in [
@@ -1615,7 +1685,7 @@ impl GpuCapApp {
                 }
             }
             if let Some(inc) = self.incidents_cache.get(self.selected_incident) {
-                if ui.button("打开该事故文件夹").clicked() {
+                if ui.button(tr(lang, "打开该事故文件夹", "Open Incident Folder")).clicked() {
                     let _ = open_folder_in_explorer(&inc.dir);
                 }
             }
@@ -1629,13 +1699,13 @@ impl GpuCapApp {
                 .auto_shrink([false, false])
                 .show(&mut cols[0], |ui| {
                     if self.incidents_cache.is_empty() {
-                        ui.label(RichText::new("暂无事故取证记录").color(COL_DIM));
+                        ui.label(RichText::new(tr(lang, "暂无事故取证记录", "No incident records")).color(COL_DIM));
                         return;
                     }
                     let mut picked = None;
                     for (idx, inc) in self.incidents_cache.iter().enumerate() {
                         let tag = if inc.belongs_to_session {
-                            "[本次] "
+                            tr(lang, "[本次] ", "[Cur] ")
                         } else {
                             ""
                         };
@@ -1672,6 +1742,7 @@ impl GpuCapApp {
 
     /// 参数设置弹窗
     fn render_settings_dialog(&mut self, ctx: &egui::Context) {
+        let lang = self.lang;
         let Some(ref mut draft) = self.settings_draft else {
             return;
         };
@@ -1690,7 +1761,21 @@ impl GpuCapApp {
                     .num_columns(2)
                     .spacing([12.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label("目标监控显卡：");
+                        ui.label(tr(self.lang, "界面语言：", "Language:"));
+                        ui.horizontal(|ui| {
+                            let is_zh = draft.cfg.language != "en";
+                            if ui.selectable_label(is_zh, "简体中文").clicked() {
+                                draft.cfg.language = "zh-CN".to_string();
+                                self.lang = UiLang::Zh;
+                            }
+                            if ui.selectable_label(!is_zh, "English").clicked() {
+                                draft.cfg.language = "en".to_string();
+                                self.lang = UiLang::En;
+                            }
+                        });
+                        ui.end_row();
+
+                        ui.label(tr(self.lang, "目标监控显卡：", "Target GPU:"));
                         if draft.gpus.is_empty() {
                             ui.add(egui::DragValue::new(&mut draft.cfg.gpu_index).range(0..=7));
                         } else {
@@ -1714,14 +1799,14 @@ impl GpuCapApp {
                         }
                         ui.end_row();
 
-                        ui.label("监控游戏进程（逗号分隔）：");
+                        ui.label(tr(self.lang, "监控游戏进程（逗号分隔）：", "Game Processes (comma-separated):"));
                         ui.add(
                             egui::TextEdit::singleline(&mut draft.game_names_text)
                                 .desired_width(260.0),
                         );
                         ui.end_row();
 
-                        ui.label("温度告警阈值 (°C)：");
+                        ui.label(tr(self.lang, "温度告警阈值 (°C)：", "GPU Temp Warn (°C):"));
                         ui.add(
                             egui::DragValue::new(&mut draft.cfg.temp_warn)
                                 .speed(0.5)
@@ -1729,7 +1814,7 @@ impl GpuCapApp {
                         );
                         ui.end_row();
 
-                        ui.label("热点告警阈值 (°C)：");
+                        ui.label(tr(self.lang, "热点告警阈值 (°C)：", "Hotspot Warn (°C):"));
                         ui.add(
                             egui::DragValue::new(&mut draft.cfg.hotspot_warn)
                                 .speed(0.5)
@@ -1737,7 +1822,7 @@ impl GpuCapApp {
                         );
                         ui.end_row();
 
-                        ui.label("温差告警阈值 (°C)：");
+                        ui.label(tr(lang, "温差告警阈值 (°C)：", "Delta Warn (°C):"));
                         ui.add(
                             egui::DragValue::new(&mut draft.cfg.hotspot_delta_warn)
                                 .speed(0.5)
@@ -1745,7 +1830,7 @@ impl GpuCapApp {
                         );
                         ui.end_row();
 
-                        ui.label("功耗告警阈值 (W)：");
+                        ui.label(tr(lang, "功耗告警阈值 (W)：", "Power Warn (W):"));
                         ui.add(
                             egui::DragValue::new(&mut draft.cfg.power_warn)
                                 .speed(5.0)
@@ -1753,7 +1838,7 @@ impl GpuCapApp {
                         );
                         ui.end_row();
 
-                        ui.label("CPU 温度告警阈值 (°C)：");
+                        ui.label(tr(lang, "CPU 温度告警阈值 (°C)：", "CPU Temp Warn (°C):"));
                         ui.add(
                             egui::DragValue::new(&mut draft.cfg.cpu_temp_warn)
                                 .speed(0.5)
@@ -1761,7 +1846,7 @@ impl GpuCapApp {
                         );
                         ui.end_row();
 
-                        ui.label("CPU 占用告警阈值 (%)：");
+                        ui.label(tr(lang, "CPU 占用告警阈值 (%)：", "CPU Usage Warn (%):"));
                         ui.add(
                             egui::DragValue::new(&mut draft.cfg.cpu_usage_warn)
                                 .speed(1.0)
@@ -1769,7 +1854,7 @@ impl GpuCapApp {
                         );
                         ui.end_row();
 
-                        ui.label("显存占用告警阈值 (%)：");
+                        ui.label(tr(lang, "显存占用告警阈值 (%)：", "VRAM Usage Warn (%):"));
                         ui.add(
                             egui::DragValue::new(&mut draft.cfg.vram_warn_pct)
                                 .speed(1.0)
@@ -1777,19 +1862,19 @@ impl GpuCapApp {
                         );
                         ui.end_row();
 
-                        ui.label("PCIe 高负载掉速预警：");
-                        ui.checkbox(&mut draft.cfg.pcie_drop_warn, "高负载下带宽低于硬件上限时告警");
+                        ui.label(tr(lang, "PCIe 高负载掉速预警：", "PCIe Drop Alert:"));
+                        ui.checkbox(&mut draft.cfg.pcie_drop_warn, tr(lang, "高负载下带宽低于硬件上限时告警", "Warn on PCIe downgrade under load"));
                         ui.end_row();
 
-                        ui.label("远程访问口令 (留空不限制)：");
+                        ui.label(tr(lang, "远程访问口令 (留空不限制)：", "Remote PIN (blank = off):"));
                         ui.add(egui::TextEdit::singleline(&mut draft.cfg.auth_pin).password(true).desired_width(140.0));
                         ui.end_row();
 
-                        ui.label("远程只读访客模式：");
-                        ui.checkbox(&mut draft.cfg.read_only_remote, "禁止远程修改配置/启停采集");
+                        ui.label(tr(lang, "远程只读访客模式：", "Read-Only Remote Mode:"));
+                        ui.checkbox(&mut draft.cfg.read_only_remote, tr(lang, "禁止远程修改配置/启停采集", "Disable remote controls"));
                         ui.end_row();
 
-                        ui.label("GPU 采样间隔 (秒)：");
+                        ui.label(tr(lang, "GPU 采样间隔 (秒)：", "GPU Interval (s):"));
                         ui.add(
                             egui::DragValue::new(&mut draft.cfg.gpu_interval)
                                 .speed(0.1)
@@ -1797,7 +1882,7 @@ impl GpuCapApp {
                         );
                         ui.end_row();
 
-                        ui.label("内存/进程/WER 间隔 (秒)：");
+                        ui.label(tr(lang, "内存/进程/WER 间隔 (秒)：", "Mem/Proc/WER Interval (s):"));
                         ui.horizontal(|ui| {
                             ui.add(
                                 egui::DragValue::new(&mut draft.cfg.mem_interval)
@@ -1817,40 +1902,40 @@ impl GpuCapApp {
                         });
                         ui.end_row();
 
-                        ui.label("会话切分时长 (小时，0 不切分)：");
+                        ui.label(tr(lang, "会话切分时长 (小时，0 不切分)：", "Session Split Hours (0 = off):"));
                         ui.add(
                             egui::DragValue::new(&mut draft.cfg.max_session_hours).range(0..=168),
                         );
                         ui.end_row();
 
-                        ui.label("单文件轮转体积 (MB)：");
+                        ui.label(tr(lang, "单文件轮转体积 (MB)：", "File Rotate Size (MB):"));
                         ui.add(egui::DragValue::new(&mut draft.cfg.rotate_mb).range(8..=1024));
                         ui.end_row();
 
-                        ui.label("关闭窗口时最小化到托盘：");
-                        ui.checkbox(&mut draft.cfg.minimize_to_tray, "启用托盘常驻");
+                        ui.label(tr(lang, "关闭窗口时最小化到托盘：", "Minimize to Tray on Close:"));
+                        ui.checkbox(&mut draft.cfg.minimize_to_tray, tr(lang, "启用托盘常驻", "Enable tray resident"));
                         ui.end_row();
 
-                        ui.label("网页服务端口 (1024~65535)：");
+                        ui.label(tr(lang, "网页服务端口 (1024~65535)：", "Web Port (1024~65535):"));
                         ui.add(egui::DragValue::new(&mut draft.cfg.web_port).range(1024..=65535));
                         ui.end_row();
                     });
 
                 ui.add_space(10.0);
                 ui.label(
-                    RichText::new("提示：采集参数修改后将在下一次启动采集时生效")
+                    RichText::new(tr(lang, "提示：采集参数修改后将在下一次启动采集时生效", "Note: Capture settings take effect on next capture start"))
                         .size(12.0)
                         .color(COL_DIM),
                 );
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     let save_btn =
-                        egui::Button::new(RichText::new("保存设置").color(Color32::WHITE))
+                        egui::Button::new(RichText::new(tr(lang, "保存设置", "Save")).color(Color32::WHITE))
                             .fill(Color32::from_rgb(0x1f, 0x6e, 0x43));
                     if ui.add(save_btn).clicked() {
                         save_clicked = true;
                     }
-                    if ui.button("取消").clicked() {
+                    if ui.button(tr(lang, "取消", "Cancel")).clicked() {
                         cancel_clicked = true;
                     }
                 });
@@ -1881,7 +1966,11 @@ impl GpuCapApp {
                                     let url = new_ws.lan_url.clone();
                                     self.web_server = Some(new_ws);
                                     (
-                                        format!("设置已保存，网页服务已切换至 {}", url),
+                                        if matches!(lang, UiLang::Zh) {
+                                            format!("设置已保存，网页服务已切换至 {}", url)
+                                        } else {
+                                            format!("Settings saved; web UI switched to {}", url)
+                                        },
                                         COL_OK,
                                         Instant::now() + Duration::from_secs(4),
                                     )
@@ -1890,7 +1979,7 @@ impl GpuCapApp {
                             }
                         } else {
                             (
-                                "设置已保存".to_string(),
+                                tr(lang, "设置已保存", "Settings saved").to_string(),
                                 COL_OK,
                                 Instant::now() + Duration::from_secs(3),
                             )
@@ -1909,30 +1998,35 @@ impl GpuCapApp {
         let Some(target) = self.pending_delete.clone() else {
             return;
         };
+        let lang = self.lang;
         let name = target
             .file_name()
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
         let mut open = true;
         let mut decided: Option<bool> = None;
-        egui::Window::new("确认删除会话")
+        egui::Window::new(tr(lang, "确认删除会话", "Delete Session"))
             .collapsible(false)
             .resizable(false)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .open(&mut open)
             .show(ctx, |ui| {
-                ui.label(RichText::new(format!("将永久删除会话 {} 的全部数据：", name)).size(14.0));
-                ui.label("· 会话目录内的 GPU / 内存 / 事件 / WER / 进程 / 告警记录");
-                ui.label("· 该会话产生的事故取证目录（incidents）");
-                ui.label(RichText::new("删除后无法恢复。").color(COL_BAD).strong());
+                ui.label(RichText::new(if matches!(lang, UiLang::Zh) {
+                    format!("将永久删除会话 {} 的全部数据：", name)
+                } else {
+                    format!("Permanently delete all data for session {}:", name)
+                }).size(14.0));
+                ui.label(tr(lang, "· 会话目录内的 GPU / 内存 / 事件 / WER / 进程 / 告警记录", "· GPU / Memory / Event / WER / Process / Alert logs in session folder"));
+                ui.label(tr(lang, "· 该会话产生的事故取证目录（incidents）", "· Incident forensics folders (incidents) created by this session"));
+                ui.label(RichText::new(tr(lang, "删除后无法恢复。", "This action cannot be undone.")).color(COL_BAD).strong());
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    let del = egui::Button::new(RichText::new("确认删除").color(Color32::WHITE))
+                    let del = egui::Button::new(RichText::new(tr(lang, "确认删除", "Delete")).color(Color32::WHITE))
                         .fill(Color32::from_rgb(0x8c, 0x2d, 0x2d));
                     if ui.add(del).clicked() {
                         decided = Some(true);
                     }
-                    if ui.button("取消").clicked() {
+                    if ui.button(tr(lang, "取消", "Cancel")).clicked() {
                         decided = Some(false);
                     }
                 });
@@ -1949,9 +2043,10 @@ impl GpuCapApp {
     }
 
     fn delete_session(&mut self, target: PathBuf) {
+        let lang = self.lang;
         if running_pid().is_some() && latest_session_path().as_ref() == Some(&target) {
             self.status_hint = Some((
-                "该会话正在采集中，请先停止采集再删除".to_string(),
+                tr(lang, "该会话正在采集中，请先停止采集再删除", "Session is active; stop capture before deleting").to_string(),
                 COL_BAD,
                 Instant::now() + Duration::from_secs(4),
             ));
@@ -1972,7 +2067,11 @@ impl GpuCapApp {
             .unwrap_or_default();
         self.status_hint = Some(match delete_session_data(&target) {
             Ok(n) => (
-                format!("已删除会话 {}（含 {} 个事故目录）", name, n),
+                if matches!(lang, UiLang::Zh) {
+                    format!("已删除会话 {}（含 {} 个事故目录）", name, n)
+                } else {
+                    format!("Deleted session {} ({} incidents)", name, n)
+                },
                 COL_OK,
                 Instant::now() + Duration::from_secs(3),
             ),
@@ -2013,7 +2112,8 @@ impl GpuCapApp {
         let mut do_delete = false;
         let mut do_close = false;
 
-        egui::Window::new("批量删除会话")
+        let lang = self.lang;
+        egui::Window::new(tr(lang, "批量删除会话", "Batch Delete Sessions"))
             .collapsible(false)
             .resizable(true)
             .default_size([460.0, 420.0])
@@ -2021,17 +2121,17 @@ impl GpuCapApp {
             .open(&mut open)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    if ui.button("全选").clicked() {
+                    if ui.button(tr(lang, "全选", "All")).clicked() {
                         for p in &self.sessions {
                             if active.as_ref() != Some(p) {
                                 self.batch_selected.insert(p.clone());
                             }
                         }
                     }
-                    if ui.button("取消全选").clicked() {
+                    if ui.button(tr(lang, "取消全选", "None")).clicked() {
                         self.batch_selected.clear();
                     }
-                    if ui.button("仅选非当前").clicked() {
+                    if ui.button(tr(lang, "仅选非当前", "Others")).clicked() {
                         self.batch_selected.clear();
                         for p in &self.sessions {
                             if active.as_ref() != Some(p) && self.session.as_ref() != Some(p) {
@@ -2039,7 +2139,7 @@ impl GpuCapApp {
                             }
                         }
                     }
-                    if ui.button("反选").clicked() {
+                    if ui.button(tr(lang, "反选", "Invert")).clicked() {
                         for p in &self.sessions {
                             if active.as_ref() == Some(p) {
                                 continue;
@@ -2053,7 +2153,7 @@ impl GpuCapApp {
 
                 ui.add_space(4.0);
                 ui.label(
-                    RichText::new("注意：删除将同时清理会话目录及关联的事故取证目录，不可恢复。")
+                    RichText::new(tr(lang, "注意：删除将同时清理会话目录及关联的事故取证目录，不可恢复。", "Note: Deletes session logs and linked incident folders permanently."))
                         .size(12.0)
                         .color(COL_DIM),
                 );
@@ -2065,7 +2165,7 @@ impl GpuCapApp {
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         if self.sessions.is_empty() {
-                            ui.label(RichText::new("暂无可删除的会话").color(COL_DIM));
+                            ui.label(RichText::new(tr(lang, "暂无可删除的会话", "No sessions available")).color(COL_DIM));
                             return;
                         }
                         for p in &self.sessions {
@@ -2091,10 +2191,10 @@ impl GpuCapApp {
                                 }
                                 ui.label(RichText::new(name).monospace().size(13.0).color(COL_FG));
                                 if is_active {
-                                    ui.label(RichText::new("[采集中]").size(11.5).color(COL_OK));
+                                    ui.label(RichText::new(tr(lang, "[采集中]", "[Active]")).size(11.5).color(COL_OK));
                                 } else if is_viewing {
                                     ui.label(
-                                        RichText::new("[当前查看]").size(11.5).color(COL_ACCENT),
+                                        RichText::new(tr(lang, "[当前查看]", "[Current]")).size(11.5).color(COL_ACCENT),
                                     );
                                 }
                                 ui.with_layout(
@@ -2115,13 +2215,21 @@ impl GpuCapApp {
                 ui.separator();
                 let count = self.batch_selected.len();
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(format!("已选中 {} 个会话", count)).color(COL_FG));
+                    ui.label(RichText::new(if matches!(lang, UiLang::Zh) {
+                        format!("已选中 {} 个会话", count)
+                    } else {
+                        format!("{} selected", count)
+                    }).color(COL_FG));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("关闭").clicked() {
+                        if ui.button(tr(lang, "关闭", "Close")).clicked() {
                             do_close = true;
                         }
                         let del_btn = egui::Button::new(
-                            RichText::new(format!("删除所选 ({})", count)).color(Color32::WHITE),
+                            RichText::new(if matches!(lang, UiLang::Zh) {
+                                format!("删除所选 ({})", count)
+                            } else {
+                                format!("Delete ({})", count)
+                            }).color(Color32::WHITE),
                         )
                         .fill(Color32::from_rgb(0x8c, 0x2d, 0x2d));
                         if ui.add_enabled(count > 0, del_btn).clicked() {
@@ -2348,6 +2456,49 @@ impl eframe::App for GpuCapApp {
             )));
         }
 
+        if self.show_lang_picker {
+            egui::Window::new("Choose Language / 请选择语言")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .fixed_size([380.0, 175.0])
+                .show(ctx, |ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(6.0);
+                        ui.label(
+                            RichText::new("Please select your interface language\n请选择您的界面语言")
+                                .size(13.5)
+                                .color(COL_FG),
+                        );
+                        ui.add_space(14.0);
+                        ui.horizontal(|ui| {
+                            ui.add_space(40.0);
+                            if ui
+                                .add_sized([130.0, 38.0], egui::Button::new(RichText::new("English").size(14.0).strong()))
+                                .clicked()
+                            {
+                                self.lang = UiLang::En;
+                                let mut cfg = load_config();
+                                cfg.language = "en".to_string();
+                                let _ = save_config(&cfg);
+                                self.show_lang_picker = false;
+                            }
+                            ui.add_space(16.0);
+                            if ui
+                                .add_sized([130.0, 38.0], egui::Button::new(RichText::new("简体中文").size(14.0).strong()))
+                                .clicked()
+                            {
+                                self.lang = UiLang::Zh;
+                                let mut cfg = load_config();
+                                cfg.language = "zh-CN".to_string();
+                                let _ = save_config(&cfg);
+                                self.show_lang_picker = false;
+                            }
+                        });
+                    });
+                });
+        }
+
         if self.hud_mode {
             egui::CentralPanel::default()
                 .frame(
@@ -2384,14 +2535,18 @@ impl eframe::App for GpuCapApp {
                         if self.alert_count > 0 {
                             ui.separator();
                             ui.label(
-                                RichText::new(format!("告警 {}", self.alert_count))
-                                    .size(12.0)
-                                    .strong()
-                                    .color(COL_WARN),
+                                RichText::new(if matches!(self.lang, UiLang::Zh) {
+                                    format!("告警 {}", self.alert_count)
+                                } else {
+                                    format!("Alerts {}", self.alert_count)
+                                })
+                                .size(12.0)
+                                .strong()
+                                .color(COL_WARN),
                             );
                         }
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button("还原窗口").clicked() {
+                            if ui.button(tr(self.lang, "还原窗口", "Restore")).clicked() {
                                 self.hud_mode = false;
                                 ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
                                     egui::WindowLevel::Normal,
@@ -2458,25 +2613,30 @@ impl eframe::App for GpuCapApp {
                             .map(|n| n.to_string_lossy().into_owned())
                             .unwrap_or_default();
                         ui.label(
-                            RichText::new(format!("当前会话 {}", sname))
-                                .size(12.5)
-                                .color(COL_DIM),
+                            RichText::new(if matches!(self.lang, UiLang::Zh) {
+                                format!("当前会话 {}", sname)
+                            } else {
+                                format!("Session {}", sname)
+                            })
+                            .size(12.5)
+                            .color(COL_DIM),
                         );
                     }
                     if let Some(ref env) = self.live_env {
                         let drv = if env.driver_version.is_empty() { "—" } else { &env.driver_version };
                         ui.label(
-                            RichText::new(format!(
-                                "· {} · 驱动 {} · 电源 {}",
-                                env.gpu_name, drv, env.power_plan
-                            ))
+                            RichText::new(if matches!(self.lang, UiLang::Zh) {
+                                format!("· {} · 驱动 {} · 电源 {}", env.gpu_name, drv, env.power_plan)
+                            } else {
+                                format!("· {} · Driver {} · Power {}", env.gpu_name, drv, env.power_plan)
+                            })
                             .size(11.5)
                             .color(COL_DIM),
                         );
                     }
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("置顶浮条").clicked() {
+                        if ui.small_button(tr(self.lang, "置顶浮条", "HUD")).clicked() {
                             self.hud_mode = true;
                             ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
                                 egui::WindowLevel::AlwaysOnTop,
@@ -2493,10 +2653,14 @@ impl eframe::App for GpuCapApp {
                                 .inner_margin(egui::Margin::symmetric(10.0, 3.0))
                                 .show(ui, |ui| {
                                     ui.label(
-                                        RichText::new(format!("告警 {} 条", self.alert_count))
-                                            .size(13.0)
-                                            .strong()
-                                            .color(COL_WARN),
+                                        RichText::new(if matches!(self.lang, UiLang::Zh) {
+                                            format!("告警 {} 条", self.alert_count)
+                                        } else {
+                                            format!("Alerts {}", self.alert_count)
+                                        })
+                                        .size(13.0)
+                                        .strong()
+                                        .color(COL_WARN),
                                     );
                                 });
                         }
@@ -2505,17 +2669,27 @@ impl eframe::App for GpuCapApp {
                                 .live_stats
                                 .gpu_power
                                 .as_ref()
-                                .map(|p| format!(" · {:.0}W峰", p.max))
+                                .map(|p| {
+                                    if matches!(self.lang, UiLang::Zh) {
+                                        format!(" · {:.0}W峰", p.max)
+                                    } else {
+                                        format!(" · {:.0}W Peak", p.max)
+                                    }
+                                })
                                 .unwrap_or_default();
                             ui.label(
-                                RichText::new(format!("极值 {:.0}~{:.0}°C (均{:.0}°C){}", ts.min, ts.max, ts.avg, p_max))
-                                    .size(11.5)
-                                    .monospace()
-                                    .color(COL_DIM),
+                                RichText::new(if matches!(self.lang, UiLang::Zh) {
+                                    format!("极值 {:.0}~{:.0}°C (均{:.0}°C){}", ts.min, ts.max, ts.avg, p_max)
+                                } else {
+                                    format!("Range {:.0}~{:.0}°C (Avg {:.0}°C){}", ts.min, ts.max, ts.avg, p_max)
+                                })
+                                .size(11.5)
+                                .monospace()
+                                .color(COL_DIM),
                             );
                         }
                         if self.copy_notice_until.is_some_and(|t| Instant::now() < t) {
-                            ui.label(RichText::new("✓ 已复制到剪贴板").color(COL_OK).size(12.5));
+                            ui.label(RichText::new(tr(self.lang, "✓ 已复制到剪贴板", "✓ Copied")).color(COL_OK).size(12.5));
                         } else if let Some((ref msg, col, until)) = self.status_hint {
                             if Instant::now() < until {
                                 ui.label(RichText::new(msg).color(col).size(12.5));
@@ -2573,7 +2747,7 @@ impl eframe::App for GpuCapApp {
                             });
                     };
 
-                    render_chip(ui, w_gpu, "显卡", COL_ACCENT, &self.last_gpu_summary, COL_FG);
+                    render_chip(ui, w_gpu, tr(self.lang, "显卡", "GPU"), COL_ACCENT, &self.last_gpu_summary, COL_FG);
 
                     let mem_txt = if self.last_mem_summary.is_empty() {
                         "—"
@@ -2582,7 +2756,7 @@ impl eframe::App for GpuCapApp {
                             .strip_prefix("内存 ")
                             .unwrap_or(&self.last_mem_summary)
                     };
-                    render_chip(ui, w_mem, "内存", COL_OK, mem_txt, COL_FG);
+                    render_chip(ui, w_mem, tr(self.lang, "内存", "RAM"), COL_OK, mem_txt, COL_FG);
 
                     let (proc_txt, pcol) = if self.last_proc_summary.is_empty() {
                         ("—", COL_DIM)
@@ -2601,7 +2775,7 @@ impl eframe::App for GpuCapApp {
                             COL_OK,
                         )
                     };
-                    render_chip(ui, w_proc, "进程", COL_WARN, proc_txt, pcol);
+                    render_chip(ui, w_proc, tr(self.lang, "进程", "Proc"), COL_WARN, proc_txt, pcol);
                 });
             });
 
@@ -2626,9 +2800,9 @@ impl eframe::App for GpuCapApp {
                     if self.collector_running {
                         let stop_btn = egui::Button::new(
                             RichText::new(if stopping {
-                                "正在停止..."
+                                tr(self.lang, "正在停止...", "Stopping...")
                             } else {
-                                "■ 停止采集"
+                                tr(self.lang, "■ 停止采集", "■ Stop")
                             })
                             .color(Color32::WHITE)
                             .strong()
@@ -2640,14 +2814,14 @@ impl eframe::App for GpuCapApp {
                             self.stopping_until = Some(Instant::now() + Duration::from_secs(6));
                             self.awaiting_new_session = false;
                             self.status_hint = Some((
-                                "已发送停止信号".to_string(),
+                                tr(self.lang, "已发送停止信号", "Stop signal sent").to_string(),
                                 COL_WARN,
                                 Instant::now() + Duration::from_secs(3),
                             ));
                         }
                     } else {
                         let start_btn = egui::Button::new(
-                            RichText::new("▶ 启动采集")
+                            RichText::new(tr(self.lang, "▶ 启动采集", "▶ Collect"))
                                 .color(Color32::WHITE)
                                 .strong()
                                 .size(13.0),
@@ -2680,7 +2854,7 @@ impl eframe::App for GpuCapApp {
                     ui.add_space(4.0);
                     if self.live_running {
                         let stop_live_btn = egui::Button::new(
-                            RichText::new("■ 停止监测")
+                            RichText::new(tr(self.lang, "■ 停止监测", "■ Stop Live"))
                                 .color(Color32::WHITE)
                                 .strong()
                                 .size(13.0),
@@ -2692,14 +2866,14 @@ impl eframe::App for GpuCapApp {
                             self.live_viewing = true;
                             self.sync_from_live();
                             self.status_hint = Some((
-                                "已停止实时监测（保留内存日志）".to_string(),
+                                tr(self.lang, "已停止实时监测（保留内存日志）", "Live monitor stopped (in-memory log kept)").to_string(),
                                 COL_WARN,
                                 Instant::now() + Duration::from_secs(3),
                             ));
                         }
                     } else {
                         let live_btn = egui::Button::new(
-                            RichText::new("◉ 实时监测")
+                            RichText::new(tr(self.lang, "◉ 实时监测", "◉ Live"))
                                 .color(Color32::WHITE)
                                 .strong()
                                 .size(13.0),
@@ -2714,7 +2888,7 @@ impl eframe::App for GpuCapApp {
                                     self.awaiting_new_session = false;
                                     self.sync_from_live();
                                     self.status_hint = Some((
-                                        "已开启纯内存实时监测（不保存磁盘）".to_string(),
+                                        tr(self.lang, "已开启纯内存实时监测（不保存磁盘）", "In-memory live monitor started").to_string(),
                                         COL_OK,
                                         Instant::now() + Duration::from_secs(3),
                                     ));
@@ -2730,17 +2904,17 @@ impl eframe::App for GpuCapApp {
                     ui.separator();
 
                     let pause_label = if self.paused {
-                        "继续滚动"
+                        tr(self.lang, "继续滚动", "Resume")
                     } else {
-                        "暂停滚动"
+                        tr(self.lang, "暂停滚动", "Pause")
                     };
                     if ui.button(pause_label).clicked() {
                         self.paused = !self.paused;
                     }
-                    ui.checkbox(&mut self.only_bad, "只看异常");
+                    ui.checkbox(&mut self.only_bad, tr(self.lang, "只看异常", "Alerts Only"));
 
                     let mut auto_start = self.startup_enabled;
-                    if ui.checkbox(&mut auto_start, "开机自启").changed() {
+                    if ui.checkbox(&mut auto_start, tr(self.lang, "开机自启", "Auto Start")).changed() {
                         let res = if auto_start {
                             install_startup_reg()
                         } else {
@@ -2767,9 +2941,10 @@ impl eframe::App for GpuCapApp {
                     }
 
                     let mut bg_run = self.minimize_to_tray;
+                    let lang = self.lang;
                     if ui
-                        .checkbox(&mut bg_run, "后台运行")
-                        .on_hover_text("开启后点击右上角关闭按钮将缩入系统托盘；关闭则直接退出")
+                        .checkbox(&mut bg_run, tr(lang, "后台运行", "Background"))
+                        .on_hover_text(tr(lang, "开启后点击右上角关闭按钮将缩入系统托盘；关闭则直接退出", "Minimize to tray on close instead of exiting"))
                         .changed()
                     {
                         self.minimize_to_tray = bg_run;
@@ -2778,9 +2953,9 @@ impl eframe::App for GpuCapApp {
                         self.status_hint = Some(match save_config(&cfg) {
                             Ok(_) => (
                                 if bg_run {
-                                    "已开启后台运行（关闭缩入托盘）".to_string()
+                                    tr(lang, "已开启后台运行（关闭缩入托盘）", "Background tray enabled").to_string()
                                 } else {
-                                    "已关闭后台运行（关闭直接退出）".to_string()
+                                    tr(lang, "已关闭后台运行（关闭直接退出）", "Background tray disabled").to_string()
                                 },
                                 COL_OK,
                                 Instant::now() + Duration::from_secs(3),
@@ -2789,7 +2964,7 @@ impl eframe::App for GpuCapApp {
                         });
                     }
 
-                    if ui.button("设置").clicked() {
+                    if ui.button(tr(lang, "设置", "Settings")).clicked() {
                         let cfg = load_config();
                         let game_names_text = cfg.game_names.join(", ");
                         let gpus = GpuSampler::list_gpus();
@@ -2802,21 +2977,28 @@ impl eframe::App for GpuCapApp {
 
                     if self.web_server.is_some() {
                         let web_btn =
-                            egui::Button::new(RichText::new("关闭网页").color(Color32::WHITE))
+                            egui::Button::new(RichText::new(tr(lang, "关闭网页", "Stop Web")).color(Color32::WHITE))
                                 .fill(Color32::from_rgb(0x1f, 0x7a, 0x4c));
                         if ui
                             .add(web_btn)
-                            .on_hover_text("关闭网页服务端并恢复主界面数据刷新")
+                            .on_hover_text(tr(lang, "关闭网页服务端并恢复主界面数据刷新", "Stop web server and resume desktop UI"))
                             .clicked()
                         {
                             self.stop_web_and_resume();
                         }
                     } else if ui
-                        .button("网页服务")
-                        .on_hover_text(format!(
-                            "开启网页端（IPv4 0.0.0.0:{0} + IPv6 [::]:{0}）并暂停主界面数据读取与刷新",
-                            self.web_port
-                        ))
+                        .button(tr(lang, "网页服务", "Web UI"))
+                        .on_hover_text(if matches!(lang, UiLang::Zh) {
+                            format!(
+                                "开启网页端（IPv4 0.0.0.0:{0} + IPv6 [::]:{0}）并暂停主界面数据读取与刷新",
+                                self.web_port
+                            )
+                        } else {
+                            format!(
+                                "Start web server (IPv4 0.0.0.0:{0} + IPv6 [::]:{0}) and pause desktop polling",
+                                self.web_port
+                            )
+                        })
                         .clicked()
                     {
                         match start_web_server(self.web_port) {
@@ -2824,7 +3006,11 @@ impl eframe::App for GpuCapApp {
                                 let url = ws.lan_url.clone();
                                 self.web_server = Some(ws);
                                 self.status_hint = Some((
-                                    format!("网页服务已开启：{}", url),
+                                    if matches!(lang, UiLang::Zh) {
+                                        format!("网页服务已开启：{}", url)
+                                    } else {
+                                        format!("Web server started: {}", url)
+                                    },
                                     COL_OK,
                                     Instant::now() + Duration::from_secs(5),
                                 ));
@@ -2836,8 +3022,8 @@ impl eframe::App for GpuCapApp {
                         }
                     }
                     if ui
-                        .button("退出")
-                        .on_hover_text("彻底关闭界面（不缩入托盘）")
+                        .button(tr(lang, "退出", "Quit"))
+                        .on_hover_text(tr(lang, "彻底关闭界面（不缩入托盘）", "Exit application completely"))
                         .clicked()
                     {
                         self.allow_quit = true;
@@ -2849,8 +3035,8 @@ impl eframe::App for GpuCapApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
-                            .button("批量删除")
-                            .on_hover_text("批量勾选并清理历史会话数据")
+                            .button(tr(lang, "批量删除", "Batch Del"))
+                            .on_hover_text(tr(lang, "批量勾选并清理历史会话数据", "Select and delete multiple sessions"))
                             .clicked()
                         {
                             self.sessions = list_sessions();
@@ -2862,7 +3048,7 @@ impl eframe::App for GpuCapApp {
                             .get(self.selected_idx)
                             .and_then(|p| p.file_name())
                             .map(|s| s.to_string_lossy().into_owned())
-                            .unwrap_or_else(|| "(无会话)".to_string());
+                            .unwrap_or_else(|| tr(lang, "(无会话)", "(No Sessions)").to_string());
                         let active = if self.collector_running {
                             latest_session_path()
                         } else {
@@ -2921,21 +3107,23 @@ impl eframe::App for GpuCapApp {
                                 }
                             }
                         }
-                        ui.label(RichText::new("会话").color(COL_DIM).size(12.5));
+                        ui.label(RichText::new(tr(lang, "会话", "Session")).color(COL_DIM).size(12.5));
 
                         if let Some(ref s) = self.session {
-                            if ui.button("打包导出").clicked() {
+                            if ui.button(tr(lang, "打包导出", "Export ZIP")).clicked() {
                                 match export_session_zip(s) {
                                     Ok(zip_path) => {
                                         let _ = open_folder_in_explorer(&data_dir());
+                                        let zname = zip_path
+                                            .file_name()
+                                            .map(|n| n.to_string_lossy().into_owned())
+                                            .unwrap_or_default();
                                         self.status_hint = Some((
-                                            format!(
-                                                "已导出 {}",
-                                                zip_path
-                                                    .file_name()
-                                                    .map(|n| n.to_string_lossy().into_owned())
-                                                    .unwrap_or_default()
-                                            ),
+                                            if matches!(lang, UiLang::Zh) {
+                                                format!("已导出 {}", zname)
+                                            } else {
+                                                format!("Exported {}", zname)
+                                            },
                                             COL_OK,
                                             Instant::now() + Duration::from_secs(5),
                                         ));
@@ -2949,22 +3137,22 @@ impl eframe::App for GpuCapApp {
                                     }
                                 }
                             }
-                            if ui.button("复制路径").clicked() {
+                            if ui.button(tr(lang, "复制路径", "Copy Path")).clicked() {
                                 ctx.copy_text(s.to_string_lossy().into_owned());
                                 self.copy_notice_until =
                                     Some(Instant::now() + Duration::from_secs(2));
                             }
                             if !self.full_history
                                 && ui
-                                    .button("加载全部")
-                                    .on_hover_text("默认只读末尾 512KB，点击加载完整会话")
+                                    .button(tr(lang, "加载全部", "Load All"))
+                                    .on_hover_text(tr(lang, "默认只读末尾 512KB，点击加载完整会话", "Loads tail 512KB by default; click to load full session"))
                                     .clicked()
                             {
                                 self.reset_tails(true);
                                 self.tick();
                             }
                         }
-                        if ui.button("打开目录").clicked() {
+                        if ui.button(tr(lang, "打开目录", "Open Folder")).clicked() {
                             let target = self.session.clone().unwrap_or_else(data_dir);
                             if let Err(e) = open_folder_in_explorer(&target) {
                                 self.status_hint =
@@ -2979,15 +3167,15 @@ impl eframe::App for GpuCapApp {
                 // 分段式标签导航栏（带底部蓝色指示条）
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
-                    let mut tab_items = vec![(Tab::Gpu, "实时 GPU")];
+                    let mut tab_items = vec![(Tab::Gpu, tr(self.lang, "实时 GPU", "Live GPU"))];
                     if self.live_viewing && self.live_cpu.is_some() {
-                        tab_items.push((Tab::Cpu, "CPU 监测"));
+                        tab_items.push((Tab::Cpu, tr(self.lang, "CPU 监测", "CPU Monitor")));
                     }
                     tab_items.extend([
-                        (Tab::Trend, "趋势曲线"),
-                        (Tab::Events, "系统事件"),
-                        (Tab::Wer, "WER / 事故"),
-                        (Tab::Alerts, "告警与取证"),
+                        (Tab::Trend, tr(self.lang, "趋势曲线", "Trends")),
+                        (Tab::Events, tr(self.lang, "系统事件", "Events")),
+                        (Tab::Wer, tr(self.lang, "WER / 事故", "WER / Crashes")),
+                        (Tab::Alerts, tr(self.lang, "告警与取证", "Alerts & Dumps")),
                     ]);
                     for (tab, title) in tab_items {
                         let selected = self.active_tab == tab;
@@ -3046,17 +3234,26 @@ impl eframe::App for GpuCapApp {
                             ui.centered_and_justified(|ui| {
                                 ui.vertical_centered(|ui| {
                                     ui.add_space(40.0);
+                                    let lang = self.lang;
                                     ui.label(
-                                        RichText::new("网页服务端已开启，主界面数据读取与刷新已暂停")
-                                            .size(18.0)
-                                            .strong()
-                                            .color(COL_OK),
+                                        RichText::new(tr(
+                                            lang,
+                                            "网页服务端已开启，主界面数据读取与刷新已暂停",
+                                            "Web server is running; desktop UI polling is paused",
+                                        ))
+                                        .size(18.0)
+                                        .strong()
+                                        .color(COL_OK),
                                     );
                                     ui.add_space(10.0);
                                     ui.label(
-                                        RichText::new("后台采集守护进程（如已启动）不受影响，请通过浏览器查看实时监控")
-                                            .size(13.5)
-                                            .color(COL_DIM),
+                                        RichText::new(tr(
+                                            lang,
+                                            "后台采集守护进程（如已启动）不受影响，请通过浏览器查看实时监控",
+                                            "Background capture (if started) continues unaffected. Open the web dashboard in a browser.",
+                                        ))
+                                        .size(13.5)
+                                        .color(COL_DIM),
                                     );
                                     ui.add_space(18.0);
                                     egui::Frame::none()
@@ -3066,41 +3263,52 @@ impl eframe::App for GpuCapApp {
                                         .inner_margin(egui::Margin::symmetric(20.0, 14.0))
                                         .show(ui, |ui| {
                                             ui.label(
-                                                RichText::new(format!("本机 IPv4：{}", local_url))
+                                                RichText::new(format!("{}{}", tr(lang, "本机 IPv4：", "Local IPv4: "), local_url))
                                                     .size(14.0)
                                                     .color(COL_FG),
                                             );
                                             ui.add_space(4.0);
                                             ui.label(
-                                                RichText::new(format!("局域网 IPv4：{}", lan_url))
+                                                RichText::new(format!("{}{}", tr(lang, "局域网 IPv4：", "LAN IPv4: "), lan_url))
                                                     .size(14.0)
                                                     .color(COL_ACCENT),
                                             );
                                             ui.add_space(4.0);
                                             ui.label(
-                                                RichText::new("局域网 UDP 自动发现端口：8788（原生端可自动扫描）")
-                                                    .size(12.5)
-                                                    .color(COL_DIM),
+                                                RichText::new(tr(
+                                                    lang,
+                                                    "局域网 UDP 自动发现端口：8788（原生端可自动扫描）",
+                                                    "LAN UDP discovery port: 8788 (auto-discovered by native apps)",
+                                                ))
+                                                .size(12.5)
+                                                .color(COL_DIM),
                                             );
                                             ui.add_space(4.0);
                                             ui.label(
-                                                RichText::new(format!("本机 IPv6：{}", local_ipv6_url))
+                                                RichText::new(format!("{}{}", tr(lang, "本机 IPv6：", "Local IPv6: "), local_ipv6_url))
                                                     .size(14.0)
                                                     .color(COL_FG),
                                             );
                                             ui.add_space(4.0);
                                             if let Some(ref v6) = ipv6_url {
                                                 ui.label(
-                                                    RichText::new(format!("外网 IPv6：{}", v6))
+                                                    RichText::new(format!("{}{}", tr(lang, "外网 IPv6：", "Public IPv6: "), v6))
                                                         .size(14.0)
                                                         .color(COL_OK),
                                                 );
                                             } else {
                                                 ui.label(
-                                                    RichText::new(format!(
-                                                        "外网 IPv6：未检测到公网 IPv6（已绑定 [::]:{}）",
-                                                        self.web_port
-                                                    ))
+                                                    RichText::new(if matches!(lang, UiLang::Zh) {
+                                                        format!(
+                                                            "外网 IPv6：未检测到公网 IPv6（已绑定 [::]:{}）",
+                                                            self.web_port
+                                                        )
+                                                    } else {
+                                                        format!(
+                                                            "Public IPv6: None detected (bound [::]:{})",
+                                                            self.web_port
+                                                        )
+                                                    })
                                                     .size(13.0)
                                                     .color(COL_DIM),
                                                 );
@@ -3111,7 +3319,7 @@ impl eframe::App for GpuCapApp {
                                         if ui
                                             .add(
                                                 egui::Button::new(
-                                                    RichText::new("在浏览器中打开")
+                                                    RichText::new(tr(lang, "在浏览器中打开", "Open in Browser"))
                                                         .color(Color32::WHITE),
                                                 )
                                                 .fill(Color32::from_rgb(0x1f, 0x6e, 0x43)),
@@ -3120,13 +3328,13 @@ impl eframe::App for GpuCapApp {
                                         {
                                             ctx.open_url(egui::OpenUrl::new_tab(&local_url));
                                         }
-                                        if ui.button("复制局域网 IPv4").clicked() {
+                                        if ui.button(tr(lang, "复制局域网 IPv4", "Copy LAN IPv4")).clicked() {
                                             ctx.copy_text(lan_url.clone());
                                             self.copy_notice_until =
                                                 Some(Instant::now() + Duration::from_secs(2));
                                         }
                                         if let Some(ref v6) = ipv6_url {
-                                            if ui.button("复制外网 IPv6").clicked() {
+                                            if ui.button(tr(lang, "复制外网 IPv6", "Copy Public IPv6")).clicked() {
                                                 ctx.copy_text(v6.clone());
                                                 self.copy_notice_until =
                                                     Some(Instant::now() + Duration::from_secs(2));
@@ -3135,7 +3343,7 @@ impl eframe::App for GpuCapApp {
                                         if ui
                                             .add(
                                                 egui::Button::new(
-                                                    RichText::new("关闭网页服务并恢复主界面")
+                                                    RichText::new(tr(lang, "关闭网页服务并恢复主界面", "Stop Web Server & Resume"))
                                                         .color(Color32::WHITE),
                                                 )
                                                 .fill(Color32::from_rgb(0x8c, 0x2d, 0x2d)),
@@ -3156,7 +3364,7 @@ impl eframe::App for GpuCapApp {
                             ui.centered_and_justified(|ui| {
                                 ui.label(
                                     RichText::new(
-                                        "暂无采集会话，请点击左上角「启动采集」开始后台记录",
+                                        tr(self.lang, "暂无采集会话，请点击左上角「启动采集」开始后台记录", "No active session. Click 'Start Cap' in the top-left to begin."),
                                     )
                                     .size(15.0)
                                     .color(COL_DIM),
@@ -3175,10 +3383,14 @@ impl eframe::App for GpuCapApp {
                                     .show(ui, |ui| {
                                         ui.horizontal(|ui| {
                                             ui.label(
-                                                RichText::new(format!("实时告警：{}", banner))
-                                                    .color(Color32::from_rgb(0xfc, 0xa5, 0xa5))
-                                                    .strong()
-                                                    .size(12.5),
+                                                RichText::new(if matches!(self.lang, UiLang::Zh) {
+                                                    format!("实时告警：{}", banner)
+                                                } else {
+                                                    format!("Live Alert: {}", banner)
+                                                })
+                                                .color(Color32::from_rgb(0xfc, 0xa5, 0xa5))
+                                                .strong()
+                                                .size(12.5),
                                             );
                                         });
                                     });
@@ -3190,21 +3402,25 @@ impl eframe::App for GpuCapApp {
                             Tab::Cpu => {
                                 if let Some(ref cpu) = self.live_cpu {
                                     ui.horizontal(|ui| {
-                                        if ui.button("复制诊断摘要").clicked() {
+                                        if ui.button(tr(self.lang, "复制诊断摘要", "Copy Summary")).clicked() {
                                             let summary = crate::live::build_diagnostic_summary();
                                             ctx.copy_text(summary);
                                             self.live_action_msg = Some((
-                                                "已复制 Markdown 诊断摘要到剪贴板".to_string(),
+                                                tr(self.lang, "已复制 Markdown 诊断摘要到剪贴板", "Diagnostic Markdown summary copied").to_string(),
                                                 COL_OK,
                                                 Instant::now() + Duration::from_secs(4),
                                             ));
                                         }
                                         if !self.live_running {
-                                            if ui.button("补存为完整会话").clicked() {
+                                            if ui.button(tr(self.lang, "补存为完整会话", "Save Session")).clicked() {
                                                 match crate::live::save_snapshot_to_session() {
                                                     Ok(sess) => {
                                                         self.live_action_msg = Some((
-                                                            format!("已补存为会话：{}", sess),
+                                                            if matches!(self.lang, UiLang::Zh) {
+                                                                format!("已补存为会话：{}", sess)
+                                                            } else {
+                                                                format!("Saved as session: {}", sess)
+                                                            },
                                                             COL_OK,
                                                             Instant::now() + Duration::from_secs(5),
                                                         ));
@@ -3232,11 +3448,12 @@ impl eframe::App for GpuCapApp {
                                         &self.live_cpu_points,
                                         &self.live_stats,
                                         &mut self.cpu_cores_expanded,
+                                        self.lang,
                                     );
                                 } else {
                                     ui.centered_and_justified(|ui| {
                                         ui.label(
-                                            RichText::new("请点击「实时监测」开始采集 CPU 数据")
+                                            RichText::new(tr(self.lang, "请点击「实时监测」开始采集 CPU 数据", "Click 'Live Mon' to start CPU monitoring"))
                                                 .color(COL_DIM)
                                                 .size(13.0),
                                         );
@@ -3250,42 +3467,73 @@ impl eframe::App for GpuCapApp {
                                     .filter(|r| !self.only_bad || r.sev != Severity::Normal)
                                     .collect();
 
+                                let lang = self.lang;
                                 ui.horizontal(|ui| {
                                     ui.label(
-                                        RichText::new(format!(
-                                            "已加载 {} 条显卡样本{}",
-                                            self.gpu_rows.len(),
-                                            if self.full_history {
-                                                "（完整历史）"
-                                            } else {
-                                                ""
-                                            }
-                                        ))
+                                        RichText::new(if matches!(lang, UiLang::Zh) {
+                                            format!(
+                                                "已加载 {} 条显卡样本{}",
+                                                self.gpu_rows.len(),
+                                                if self.full_history {
+                                                    "（完整历史）"
+                                                } else {
+                                                    ""
+                                                }
+                                            )
+                                        } else {
+                                            format!(
+                                                "Loaded {} GPU samples{}",
+                                                self.gpu_rows.len(),
+                                                if self.full_history {
+                                                    " (Full History)"
+                                                } else {
+                                                    ""
+                                                }
+                                            )
+                                        })
                                         .size(12.0)
                                         .color(COL_DIM),
                                     );
-                                    if ui.button("跳到末尾（黑屏前）").clicked() {
+                                    if ui.button(tr(lang, "跳到末尾（黑屏前）", "Jump to Latest")).clicked() {
                                         self.paused = false;
                                         self.scroll_gpu_bottom = true;
                                     }
                                 });
                                 ui.add_space(2.0);
 
-                                let heads = [
-                                    ("时间", 84.0),
-                                    ("温度°C", 62.0),
-                                    ("热点°C", 64.0),
-                                    ("温差°C", 64.0),
-                                    ("功耗W", 66.0),
-                                    ("核心MHz", 76.0),
-                                    ("显存MHz", 76.0),
-                                    ("PCIe", 76.0),
-                                    ("占用%", 62.0),
-                                    ("显存MB", 74.0),
-                                    ("风扇%", 58.0),
-                                    ("降频位", 92.0),
-                                    ("状态", 62.0),
-                                ];
+                                let heads = if self.lang == UiLang::En {
+                                    [
+                                        ("Time", 84.0),
+                                        ("Temp°C", 62.0),
+                                        ("Hotspot°C", 68.0),
+                                        ("Delta°C", 64.0),
+                                        ("Power W", 66.0),
+                                        ("Core MHz", 76.0),
+                                        ("Mem MHz", 76.0),
+                                        ("PCIe", 76.0),
+                                        ("Util%", 62.0),
+                                        ("VRAM MB", 74.0),
+                                        ("Fan%", 58.0),
+                                        ("Throttle", 92.0),
+                                        ("Status", 62.0),
+                                    ]
+                                } else {
+                                    [
+                                        ("时间", 84.0),
+                                        ("温度°C", 62.0),
+                                        ("热点°C", 64.0),
+                                        ("温差°C", 64.0),
+                                        ("功耗W", 66.0),
+                                        ("核心MHz", 76.0),
+                                        ("显存MHz", 76.0),
+                                        ("PCIe", 76.0),
+                                        ("占用%", 62.0),
+                                        ("显存MB", 74.0),
+                                        ("风扇%", 58.0),
+                                        ("降频原因", 92.0),
+                                        ("状态", 62.0),
+                                    ]
+                                };
                                 let mut table = TableBuilder::new(ui)
                                     .striped(false)
                                     .resizable(true)
@@ -3326,6 +3574,7 @@ impl eframe::App for GpuCapApp {
                                         body.rows(22.0, filtered.len(), |mut row| {
                                             let r = filtered[row.index()];
                                             let c = r.sev.color();
+                                            let thr_txt = tr_thr(self.lang, &r.thr_label);
                                             for val in [
                                                 &r.ts,
                                                 &r.temp,
@@ -3338,7 +3587,7 @@ impl eframe::App for GpuCapApp {
                                                 &r.util,
                                                 &r.vram,
                                                 &r.fan,
-                                                &r.thr_label,
+                                                &thr_txt,
                                                 &r.ok,
                                             ] {
                                                 row.col(|ui| {
@@ -3356,6 +3605,7 @@ impl eframe::App for GpuCapApp {
                             Tab::Trend => {
                                 Self::render_trend(
                                     ui,
+                                    self.lang,
                                     &self.gpu_rows,
                                     &self.mem_points,
                                     &self.alert_lines,
@@ -3367,11 +3617,12 @@ impl eframe::App for GpuCapApp {
                                 Self::render_log_table(
                                     ui,
                                     ctx,
+                                    self.lang,
                                     &self.event_lines,
                                     self.only_bad,
                                     &mut self.log_filter,
                                     !self.paused,
-                                    "来源 / 事件编号",
+                                    tr(self.lang, "来源 / 事件编号", "Source / Event ID"),
                                     &mut self.status_hint,
                                 );
                             }
@@ -3379,11 +3630,12 @@ impl eframe::App for GpuCapApp {
                                 Self::render_log_table(
                                     ui,
                                     ctx,
+                                    self.lang,
                                     &self.wer_lines,
                                     false,
                                     &mut self.log_filter,
                                     !self.paused,
-                                    "创建时间",
+                                    tr(self.lang, "创建时间", "Created At"),
                                     &mut self.status_hint,
                                 );
                             }
@@ -3417,73 +3669,73 @@ fn fmt_val(v: f64, decimals: usize) -> String {
     format!("{:.*}", decimals, v)
 }
 
-fn trend_metrics() -> Vec<TrendMetric> {
+fn trend_metrics(lang: UiLang) -> Vec<TrendMetric> {
     vec![
         TrendMetric {
-            name: "GPU 温度",
+            name: tr(lang, "GPU 温度", "GPU Temp"),
             unit: "°C",
             decimals: 1,
             color: Color32::from_rgb(0xff, 0x7a, 0x45),
             get: |r| parse_num(&r.temp),
         },
         TrendMetric {
-            name: "GPU 热点温度",
+            name: tr(lang, "GPU 热点温度", "GPU Hotspot"),
             unit: "°C",
             decimals: 1,
             color: Color32::from_rgb(0xf4, 0x3f, 0x5e),
             get: |r| parse_num(&r.hotspot),
         },
         TrendMetric {
-            name: "热点温差 (热点-GPU)",
+            name: tr(lang, "热点温差 (热点-GPU)", "Hotspot Delta"),
             unit: "°C",
             decimals: 1,
             color: Color32::from_rgb(0xfb, 0x92, 0x3c),
             get: |r| parse_num(&r.hotspot_delta),
         },
         TrendMetric {
-            name: "功耗",
+            name: tr(lang, "功耗", "Power"),
             unit: "W",
             decimals: 1,
             color: Color32::from_rgb(0xff, 0xb0, 0x20),
             get: |r| parse_num(&r.power),
         },
         TrendMetric {
-            name: "核心频率",
+            name: tr(lang, "核心频率", "Core Clock"),
             unit: "MHz",
             decimals: 0,
             color: Color32::from_rgb(0x4d, 0xa3, 0xff),
             get: |r| parse_num(&r.core),
         },
         TrendMetric {
-            name: "显存频率",
+            name: tr(lang, "显存频率", "Mem Clock"),
             unit: "MHz",
             decimals: 0,
             color: Color32::from_rgb(0x9b, 0x7b, 0xff),
             get: |r| parse_num(&r.memclk),
         },
         TrendMetric {
-            name: "GPU 占用",
+            name: tr(lang, "GPU 占用", "GPU Util"),
             unit: "%",
             decimals: 0,
             color: Color32::from_rgb(0x3d, 0xdc, 0x84),
             get: |r| parse_num(&r.util),
         },
         TrendMetric {
-            name: "显存占用",
+            name: tr(lang, "显存占用", "VRAM Used"),
             unit: "MB",
             decimals: 0,
             color: Color32::from_rgb(0x36, 0xcf, 0xc9),
             get: |r| parse_num(&r.vram),
         },
         TrendMetric {
-            name: "风扇转速",
+            name: tr(lang, "风扇转速", "Fan Speed"),
             unit: "%",
             decimals: 0,
             color: Color32::from_rgb(0xf7, 0x59, 0xab),
             get: |r| parse_num(&r.fan),
         },
         TrendMetric {
-            name: "PCIe 代数",
+            name: tr(lang, "PCIe 代数", "PCIe Gen"),
             unit: "Gen",
             decimals: 0,
             color: Color32::from_rgb(0xff, 0x4d, 0x4f),
@@ -3656,6 +3908,7 @@ fn render_cpu_ring_panel(
     cpu_points: &[crate::live::LiveCpuPoint],
     stats: &crate::live::LiveStatsSummary,
     cores_expanded: &mut bool,
+    lang: UiLang,
 ) {
     let accent = Color32::from_rgb(0x38, 0xbd, 0xf8);
     let p_col = Color32::from_rgb(0x60, 0xa5, 0xfa);
@@ -3701,23 +3954,43 @@ fn render_cpu_ring_panel(
                                 COL_FG
                             };
                             ui.label(
-                                RichText::new(format!(
-                                    "温度 {}  ·  物理 {} 核 / 逻辑 {} 线程",
-                                    temp_str, cpu.physical_cores, cpu.logical_cores
-                                ))
+                                RichText::new(if matches!(lang, UiLang::Zh) {
+                                    format!(
+                                        "温度 {}  ·  物理 {} 核 / 逻辑 {} 线程",
+                                        temp_str, cpu.physical_cores, cpu.logical_cores
+                                    )
+                                } else {
+                                    format!(
+                                        "Temp {}  ·  {}C / {}T",
+                                        temp_str, cpu.physical_cores, cpu.logical_cores
+                                    )
+                                })
                                 .color(tcol)
                                 .size(12.0),
                             );
                             let stat_str = stats
                                 .cpu_usage
                                 .as_ref()
-                                .map(|s| format!("  ·  占用均{:.0}% 峰{:.0}%", s.avg, s.max))
+                                .map(|s| {
+                                    if matches!(lang, UiLang::Zh) {
+                                        format!("  ·  占用均{:.0}% 峰{:.0}%", s.avg, s.max)
+                                    } else {
+                                        format!("  ·  Avg {:.0}% Peak {:.0}%", s.avg, s.max)
+                                    }
+                                })
                                 .unwrap_or_default();
                             ui.label(
-                                RichText::new(format!(
-                                    "均频 {} MHz  ·  峰值 {} MHz{}",
-                                    cpu.avg_freq_mhz, cpu.max_freq_mhz, stat_str
-                                ))
+                                RichText::new(if matches!(lang, UiLang::Zh) {
+                                    format!(
+                                        "均频 {} MHz  ·  峰值 {} MHz{}",
+                                        cpu.avg_freq_mhz, cpu.max_freq_mhz, stat_str
+                                    )
+                                } else {
+                                    format!(
+                                        "Avg {} MHz  ·  Max {} MHz{}",
+                                        cpu.avg_freq_mhz, cpu.max_freq_mhz, stat_str
+                                    )
+                                })
                                 .color(COL_DIM)
                                 .size(11.5),
                             );
@@ -3745,7 +4018,11 @@ fn render_cpu_ring_panel(
                             ui.add_space(8.0);
                             ui.vertical(|ui| {
                                 ui.label(
-                                    RichText::new(format!("P 性能核 ×{}", cpu.p_count))
+                                    RichText::new(if matches!(lang, UiLang::Zh) {
+                                        format!("P 性能核 ×{}", cpu.p_count)
+                                    } else {
+                                        format!("P-Core ×{}", cpu.p_count)
+                                    })
                                         .color(p_col)
                                         .strong()
                                         .size(12.0),
@@ -3778,7 +4055,11 @@ fn render_cpu_ring_panel(
                             ui.add_space(8.0);
                             ui.vertical(|ui| {
                                 ui.label(
-                                    RichText::new(format!("E 能效核 ×{}", cpu.e_count))
+                                    RichText::new(if matches!(lang, UiLang::Zh) {
+                                        format!("E 能效核 ×{}", cpu.e_count)
+                                    } else {
+                                        format!("E-Core ×{}", cpu.e_count)
+                                    })
                                         .color(e_col)
                                         .strong()
                                         .size(12.0),
@@ -3805,15 +4086,19 @@ fn render_cpu_ring_panel(
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(
-                            RichText::new("CPU 60 秒实时趋势与异常点标注")
+                            RichText::new(tr(lang, "CPU 60 秒实时趋势与异常点标注", "CPU 60s Live Trend & Alerts"))
                                 .color(Color32::WHITE)
                                 .strong()
                                 .size(12.5),
                         );
                         ui.label(
-                            RichText::new("（蓝线：占用 % · 橙线：温度 °C · 红点：异常/降频时刻）")
-                                .color(COL_DIM)
-                                .size(11.0),
+                            RichText::new(tr(
+                                lang,
+                                "（蓝线：占用 % · 橙线：温度 °C · 红点：异常/降频时刻）",
+                                "(Blue: Usage % · Orange: Temp °C · Red: Alert/Throttle)",
+                            ))
+                            .color(COL_DIM)
+                            .size(11.0),
                         );
                     });
                     ui.add_space(4.0);
@@ -3844,14 +4129,14 @@ fn render_cpu_ring_panel(
                         .show(ui, |plot_ui| {
                             plot_ui.line(
                                 egui_plot::Line::new(egui_plot::PlotPoints::new(usage_pts))
-                                    .name("CPU 占用 %")
+                                    .name(tr(lang, "CPU 占用 %", "CPU Usage %"))
                                     .color(accent)
                                     .width(2.0_f32),
                             );
                             if !temp_pts.is_empty() {
                                 plot_ui.line(
                                     egui_plot::Line::new(egui_plot::PlotPoints::new(temp_pts))
-                                        .name("CPU 温度 °C")
+                                        .name(tr(lang, "CPU 温度 °C", "CPU Temp °C"))
                                         .color(COL_WARN)
                                         .width(1.5_f32),
                                 );
@@ -3859,7 +4144,7 @@ fn render_cpu_ring_panel(
                             if !alert_pts.is_empty() {
                                 plot_ui.points(
                                     egui_plot::Points::new(egui_plot::PlotPoints::new(alert_pts))
-                                        .name("异常/降频")
+                                        .name(tr(lang, "异常/降频", "Alert/Throttle"))
                                         .color(COL_BAD)
                                         .radius(4.5_f32),
                                 );
@@ -3878,7 +4163,7 @@ fn render_cpu_ring_panel(
                     .rounding(8.0)
                     .inner_margin(egui::Margin::symmetric(12.0, 9.0))
                     .show(&mut cols_ui[0], |ui| {
-                        ui.label(RichText::new("Top 5 CPU 占用进程").color(accent).strong().size(12.5));
+                        ui.label(RichText::new(tr(lang, "Top 5 CPU 占用进程", "Top 5 CPU Processes")).color(accent).strong().size(12.5));
                         ui.add_space(4.0);
                         for p in &cpu.top_cpu_procs {
                             ui.horizontal(|ui| {
@@ -3895,7 +4180,7 @@ fn render_cpu_ring_panel(
                     .rounding(8.0)
                     .inner_margin(egui::Margin::symmetric(12.0, 9.0))
                     .show(&mut cols_ui[1], |ui| {
-                        ui.label(RichText::new("Top 5 内存占用进程").color(e_col).strong().size(12.5));
+                        ui.label(RichText::new(tr(lang, "Top 5 内存占用进程", "Top 5 Memory Processes")).color(e_col).strong().size(12.5));
                         ui.add_space(4.0);
                         for p in &cpu.top_mem_procs {
                             ui.horizontal(|ui| {
@@ -3913,9 +4198,15 @@ fn render_cpu_ring_panel(
         ui.add_space(10.0);
         ui.horizontal(|ui| {
             let toggle_txt = if *cores_expanded {
-                format!("▼ 逐逻辑核心环形负载（{} 核，点击收起）", cpu.cores.len())
-            } else {
+                if matches!(lang, UiLang::Zh) {
+                    format!("▼ 逐逻辑核心环形负载（{} 核，点击收起）", cpu.cores.len())
+                } else {
+                    format!("▼ Per-Core Ring Load ({} threads, click to collapse)", cpu.cores.len())
+                }
+            } else if matches!(lang, UiLang::Zh) {
                 format!("▶ 逐逻辑核心环形负载（{} 核，点击展开）", cpu.cores.len())
+            } else {
+                format!("▶ Per-Core Ring Load ({} threads, click to expand)", cpu.cores.len())
             };
             if ui.button(RichText::new(toggle_txt).size(12.0).color(COL_FG)).clicked() {
                 *cores_expanded = !*cores_expanded;

@@ -50,6 +50,7 @@ class HostRepository(private val context: Context) {
     companion object {
         private val KEY_LAST_URL = stringPreferencesKey("last_url")
         private val KEY_HISTORY_JSON = stringPreferencesKey("history_urls_json")
+        private val KEY_APP_LANG = stringPreferencesKey("app_lang")
         private const val LEGACY_PREFS = "gpucap_prefs"
         private const val DEFAULT_PORT = 8787
         private val EMBEDDED_URL_PATTERN =
@@ -74,6 +75,16 @@ class HostRepository(private val context: Context) {
 
     val historyFlow: Flow<List<String>> = context.gpucapDataStore.data.map { prefs ->
         decodeHistory(prefs[KEY_HISTORY_JSON])
+    }
+
+    val appLangRawFlow: Flow<String> = context.gpucapDataStore.data.map { prefs ->
+        prefs[KEY_APP_LANG] ?: ""
+    }
+
+    suspend fun setAppLang(code: String) {
+        context.gpucapDataStore.edit { prefs ->
+            prefs[KEY_APP_LANG] = code
+        }
     }
 
     /** 将旧版 SharedPreferences 数据无缝迁移到 DataStore */

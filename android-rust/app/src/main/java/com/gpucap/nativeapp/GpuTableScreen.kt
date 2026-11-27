@@ -70,6 +70,7 @@ fun GpuTableScreen(
     uiState: MainUiState,
     vm: MainViewModel,
 ) {
+    val s = LocalStrings.current
     val data = uiState.monitorState
     var detailRow by remember { mutableStateOf<GpuRowDto?>(null) }
     var logDetail by remember { mutableStateOf<LogEntryDto?>(null) }
@@ -105,19 +106,19 @@ fun GpuTableScreen(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "返回",
+                            contentDescription = s.t("返回", "Back"),
                             tint = GpuColors.Text,
                             modifier = Modifier.size(15.dp),
                         )
                         Spacer(modifier = Modifier.width(2.dp))
-                        Text(text = "返回", color = GpuColors.Text, fontSize = 11.5.sp)
+                        Text(text = s.t("返回", "Back"), color = GpuColors.Text, fontSize = 11.5.sp)
                     }
                 }
 
                 Text(
                     text = when (uiState.selectedSession) {
-                        "" -> "数据明细"
-                        "__live__" -> "实时监测(仅内存)"
+                        "" -> s.t("数据明细", "Telemetry Details")
+                        "__live__" -> s.t("实时监测(仅内存)", "Live (Memory)")
                         else -> uiState.selectedSession
                     },
                     color = Color.White,
@@ -131,7 +132,7 @@ fun GpuTableScreen(
 
                 SmallActionChip(
                     icon = if (data.liveRunning) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
-                    label = if (data.liveRunning) "停止" else "实时",
+                    label = if (data.liveRunning) s.stopCap else s.t("实时", "Live"),
                     fg = if (data.liveRunning) GpuColors.BadLight else GpuColors.Accent,
                     bg = if (data.liveRunning) GpuColors.BadBg else GpuColors.AccentBg,
                     border = if (data.liveRunning) GpuColors.BadBorder else GpuColors.AccentBorder,
@@ -140,7 +141,7 @@ fun GpuTableScreen(
 
                 SmallActionChip(
                     icon = if (uiState.keepScreenOn) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
-                    label = "常亮",
+                    label = s.t("常亮", "Awake"),
                     fg = if (uiState.keepScreenOn) GpuColors.EmeraldLight else GpuColors.Dim,
                     bg = if (uiState.keepScreenOn) GpuColors.EmeraldBg else GpuColors.Card,
                     border = if (uiState.keepScreenOn) GpuColors.EmeraldBorder else GpuColors.Border,
@@ -149,7 +150,7 @@ fun GpuTableScreen(
 
                 SmallActionChip(
                     icon = if (uiState.paused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
-                    label = if (uiState.paused) "继续" else "暂停",
+                    label = if (uiState.paused) s.resumeUi else s.pauseUi,
                     fg = if (uiState.paused) GpuColors.WarnLight else GpuColors.Text,
                     bg = if (uiState.paused) GpuColors.WarnBg else GpuColors.Card,
                     border = if (uiState.paused) GpuColors.WarnBorder else GpuColors.Border,
@@ -158,7 +159,7 @@ fun GpuTableScreen(
 
                 SmallActionChip(
                     icon = Icons.Rounded.WarningAmber,
-                    label = "异常",
+                    label = s.t("异常", "Alerts"),
                     fg = if (uiState.onlyBad) GpuColors.BadLight else GpuColors.Text,
                     bg = if (uiState.onlyBad) GpuColors.BadBg else GpuColors.Card,
                     border = if (uiState.onlyBad) GpuColors.BadBorder else GpuColors.Border,
@@ -168,7 +169,7 @@ fun GpuTableScreen(
                 if (!uiState.fullHistory) {
                     SmallActionChip(
                         icon = Icons.Rounded.Refresh,
-                        label = "全部",
+                        label = s.t("全部", "All"),
                         fg = GpuColors.Text,
                         bg = GpuColors.Card,
                         border = GpuColors.Border,
@@ -198,7 +199,7 @@ fun GpuTableScreen(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                     ) {
                         Text(
-                            text = "实时告警：$banner",
+                            text = s.t("实时告警：$banner", "Live Alert: $banner"),
                             color = GpuColors.BadLight,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -207,7 +208,7 @@ fun GpuTableScreen(
                             modifier = Modifier.weight(1f),
                         )
                         Text(
-                            text = "关闭",
+                            text = s.closeBtn,
                             color = Color.White,
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
@@ -264,7 +265,7 @@ fun GpuTableScreen(
                     onlyBad = uiState.onlyBad,
                     filter = uiState.logFilter,
                     onFilterChange = vm::setLogFilter,
-                    emptyHint = "暂无系统事件记录",
+                    emptyHint = s.t("暂无系统事件记录", "No system events recorded"),
                     onClickItem = { logDetail = it },
                 )
 
@@ -273,7 +274,7 @@ fun GpuTableScreen(
                     onlyBad = false,
                     filter = uiState.logFilter,
                     onFilterChange = vm::setLogFilter,
-                    emptyHint = "暂未监测到 WER 崩溃与转储记录",
+                    emptyHint = s.t("暂未监测到 WER 崩溃与转储记录", "No WER crash or dump records"),
                     onClickItem = { logDetail = it },
                 )
 
@@ -303,27 +304,28 @@ fun GpuTableScreen(
 
 @Composable
 internal fun GpuRowDetailDialog(row: GpuRowDto, onDismiss: () -> Unit) {
+    val s = LocalStrings.current
     val pairs = listOf(
-        "采样时间" to row.ts,
-        "GPU 温度" to "${row.temp} °C",
-        "热点温度" to if (row.hotspot.isEmpty()) "—" else "${row.hotspot} °C",
-        "热点温差" to (row.hotspotDeltaText?.let { "$it °C" } ?: "—"),
-        "实时功耗" to "${row.power} W",
-        "核心频率" to "${row.core} MHz",
-        "显存频率" to "${row.memclk} MHz",
-        "PCIe 链路" to if (row.pcieDrop) "${row.pcie} (降速)" else row.pcie,
-        "GPU 占用" to "${row.util} %",
-        "显存占用" to if (row.vramPct > 0.0) "${row.vram}/${row.vramTotal} MB (${row.vramPct}%)" else "${row.vram} MB",
-        "风扇转速" to "${row.fan} %",
-        "降频原因" to (row.thrLabel.ifBlank { row.thr }.ifBlank { "—" }),
-        "状态判定" to row.ok,
+        s.t("采样时间", "Timestamp") to row.ts,
+        s.t("GPU 温度", "GPU Temp") to "${row.temp} °C",
+        s.t("热点温度", "Hotspot") to if (row.hotspot.isEmpty()) "—" else "${row.hotspot} °C",
+        s.t("热点温差", "Delta") to (row.hotspotDeltaText?.let { "$it °C" } ?: "—"),
+        s.t("实时功耗", "Power") to "${row.power} W",
+        s.t("核心频率", "Core Clock") to "${row.core} MHz",
+        s.t("显存频率", "Mem Clock") to "${row.memclk} MHz",
+        s.t("PCIe 链路", "PCIe Link") to if (row.pcieDrop) s.t("${row.pcie} (降速)", "${row.pcie} (Drop)") else row.pcie,
+        s.t("GPU 占用", "GPU Util") to "${row.util} %",
+        s.t("显存占用", "VRAM") to if (row.vramPct > 0.0) "${row.vram}/${row.vramTotal} MB (${row.vramPct}%)" else "${row.vram} MB",
+        s.t("风扇转速", "Fan Speed") to "${row.fan} %",
+        s.t("降频原因", "Throttle") to (s.trThr(row.thrLabel.ifBlank { row.thr }).ifBlank { "—" }),
+        s.t("状态判定", "Status") to s.trBackend(row.ok),
     )
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = GpuColors.Card,
         title = {
             Text(
-                text = "采样详情 · ${row.ts}",
+                text = s.t("采样详情 · ${row.ts}", "Sample Detail · ${row.ts}"),
                 color = Color.White,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
@@ -351,7 +353,7 @@ internal fun GpuRowDetailDialog(row: GpuRowDto, onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("关闭", color = GpuColors.Accent, fontWeight = FontWeight.Bold)
+                Text(s.closeBtn, color = GpuColors.Accent, fontWeight = FontWeight.Bold)
             }
         },
     )
@@ -368,9 +370,10 @@ internal fun FullGpuTableContent(
         val base = if (onlyBad) rows.filter { it.sev != "normal" } else rows
         base.asReversed()
     }
+    val s = LocalStrings.current
     if (list.isEmpty()) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-            Text(text = "暂无显卡采样记录", color = GpuColors.Dim, fontSize = 13.sp)
+            Text(text = s.t("暂无显卡采样记录", "No GPU telemetry samples"), color = GpuColors.Dim, fontSize = 13.sp)
         }
         return
     }
@@ -385,18 +388,18 @@ internal fun FullGpuTableContent(
 
     val timeWidth = 76.dp
     val baseCols: List<Pair<String, Dp>> = listOf(
-        "温度" to 54.dp,
-        "热点" to 58.dp,
-        "温差" to 54.dp,
-        "功耗" to 62.dp,
-        "核心" to 60.dp,
-        "显存频" to 62.dp,
+        s.t("温度", "Temp") to 54.dp,
+        s.t("热点", "Hotspot") to 58.dp,
+        s.t("温差", "Delta") to 54.dp,
+        s.t("功耗", "Power") to 62.dp,
+        s.t("核心", "Core") to 60.dp,
+        s.t("显存频", "MemClk") to 62.dp,
         "PCIe" to 78.dp,
-        "占用" to 50.dp,
-        "显存" to 88.dp,
-        "风扇" to 50.dp,
-        "降频原因" to 96.dp,
-        "状态" to 48.dp,
+        s.t("占用", "Util") to 50.dp,
+        s.t("显存", "VRAM") to 88.dp,
+        s.t("风扇", "Fan") to 50.dp,
+        s.t("降频原因", "Throttle") to 96.dp,
+        s.t("状态", "State") to 48.dp,
     )
     val baseTotal = 760.dp
 
@@ -422,15 +425,21 @@ internal fun FullGpuTableContent(
                         .padding(horizontal = 10.dp, vertical = 5.dp),
                 ) {
                     Text(
-                        text = "样本 ${list.size} 条 · 降频 $thrCount 次（点击行查看详情）",
+                        text = s.t(
+                            "样本 ${list.size} 条 · 降频 $thrCount 次（点击行查看详情）",
+                            "Samples: ${list.size} · Throttled: $thrCount (tap row for details)",
+                        ),
                         color = GpuColors.Dim,
                         fontSize = 10.5.sp,
                         fontFamily = FontFamily.Monospace,
                     )
                     stats.gpuTemp?.let { st ->
-                        val pStr = stats.gpuPower?.let { " · 功耗峰 ${it.max}W" } ?: ""
+                        val pStr = stats.gpuPower?.let { s.t(" · 功耗峰 ${it.max}W", " · Peak ${it.max}W") } ?: ""
                         Text(
-                            text = "温度 ${st.min}~${st.max}°C (均${st.avg}°C)$pStr",
+                            text = s.t(
+                                "温度 ${st.min}~${st.max}°C (均${st.avg}°C)$pStr",
+                                "Temp ${st.min}~${st.max}°C (avg ${st.avg}°C)$pStr",
+                            ),
                             color = GpuColors.Accent,
                             fontSize = 10.5.sp,
                             fontFamily = FontFamily.Monospace,
@@ -445,7 +454,7 @@ internal fun FullGpuTableContent(
                         .padding(vertical = 8.dp),
                 ) {
                     Text(
-                        text = "时间",
+                        text = s.t("时间", "Time"),
                         color = Color.White,
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -486,7 +495,7 @@ internal fun FullGpuTableContent(
                             if (r.vramPct > 0.0) "${r.vram}(${r.vramPct.toInt()}%)" else r.vram,
                             r.fan,
                             r.thrLabel.ifBlank { r.thr }.ifBlank { "—" },
-                            r.ok,
+                            s.trBackend(r.ok),
                         )
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -547,12 +556,12 @@ internal fun FullGpuTableContent(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.ArrowUpward,
-                            contentDescription = "回到最新",
+                            contentDescription = s.t("回到最新", "Jump to Latest"),
                             tint = GpuColors.AccentDark,
                             modifier = Modifier.size(14.dp),
                         )
                         Text(
-                            text = "回到最新",
+                            text = s.t("回到最新", "Latest"),
                             color = GpuColors.AccentDark,
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold,

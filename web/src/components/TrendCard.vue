@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as echarts from 'echarts'
+import { tl } from '../i18n'
 
 const props = defineProps({
   name: { type: String, required: true },
@@ -155,14 +156,14 @@ onBeforeUnmount(() => {
       <div class="flex items-center gap-2.5 text-xs">
         <span class="font-mono text-sm font-bold" :style="{ color }">{{ stats.cur }} {{ unit }}</span>
         <div v-if="points.length" class="flex items-center gap-1.5 rounded-md bg-white/[0.04] px-2 py-0.5 font-mono text-[11px] text-slate-400">
-          <span>高 {{ stats.max }}</span>
+          <span>{{ tl('高', 'Hi') }} {{ stats.max }}</span>
           <span class="text-slate-600">/</span>
-          <span>低 {{ stats.min }}</span>
+          <span>{{ tl('低', 'Lo') }} {{ stats.min }}</span>
         </div>
       </div>
     </div>
     <div v-if="!points.length" class="flex h-44 items-center justify-center text-sm text-slate-500">
-      该参数暂无有效数据
+      {{ tl('该参数暂无有效数据', 'No valid data for this metric') }}
     </div>
     <div v-else ref="chartEl" class="h-44 w-full"></div>
   </div>

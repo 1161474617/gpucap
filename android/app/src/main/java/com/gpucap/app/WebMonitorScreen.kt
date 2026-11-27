@@ -77,10 +77,13 @@ enum class ConnStatus {
 @Composable
 fun WebMonitorScreen(
     url: String,
+    isZh: Boolean = false,
+    onToggleLang: () -> Unit = {},
     onSwitchHost: () -> Unit,
     onToast: (String) -> Unit,
     onCanGoBackChanged: (() -> Boolean) -> Unit,
 ) {
+    fun t(zh: String, en: String): String = if (isZh) zh else en
     val context = LocalContext.current
     var connStatus by remember(url) { mutableStateOf(ConnStatus.Connecting) }
     var progress by remember(url) { mutableIntStateOf(0) }
@@ -114,10 +117,10 @@ fun WebMonitorScreen(
                     val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
                     if (dm != null) {
                         dm.enqueue(req)
-                        onToast("开始下载：$fileName")
+                        onToast(t("开始下载：$fileName", "Downloading: $fileName"))
                     }
                 } catch (e: Exception) {
-                    onToast("下载失败：${e.message}")
+                    onToast(t("下载失败：${e.message}", "Download failed: ${e.message}"))
                 }
             }
         }
@@ -188,6 +191,26 @@ fun WebMonitorScreen(
 
             Surface(
                 onClick = {
+                    val nextZh = !isZh
+                    onToggleLang()
+                    val code = if (nextZh) "zh-CN" else "en"
+                    webView.evaluateJavascript("localStorage.setItem('gpucap_lang', '$code');", null)
+                    webView.reload()
+                },
+                shape = RoundedCornerShape(10.dp),
+                color = GpuColors.SurfaceBtn,
+            ) {
+                Text(
+                    text = if (isZh) "EN" else "中文",
+                    color = GpuColors.Accent,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                )
+            }
+
+            Surface(
+                onClick = {
                     errorMessage = null
                     connStatus = ConnStatus.Connecting
                     webView.reload()
@@ -201,12 +224,12 @@ fun WebMonitorScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Refresh,
-                        contentDescription = "刷新",
+                        contentDescription = t("刷新", "Reload"),
                         tint = GpuColors.Text,
                         modifier = Modifier.size(15.dp),
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "刷新", color = GpuColors.Text, fontSize = 12.sp)
+                    Text(text = t("刷新", "Reload"), color = GpuColors.Text, fontSize = 12.sp)
                 }
             }
 
@@ -222,12 +245,12 @@ fun WebMonitorScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.SwapHoriz,
-                        contentDescription = "切换主机",
+                        contentDescription = t("切换主机", "Switch Host"),
                         tint = GpuColors.Accent,
                         modifier = Modifier.size(15.dp),
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "切换", color = GpuColors.Accent, fontSize = 12.sp)
+                    Text(text = t("切换", "Switch"), color = GpuColors.Accent, fontSize = 12.sp)
                 }
             }
         }
@@ -263,6 +286,11 @@ fun WebMonitorScreen(
                             webViewClient = object : WebViewClient() {
                                 override fun onPageFinished(view: WebView?, loadedUrl: String?) {
                                     super.onPageFinished(view, loadedUrl)
+                                    val code = if (isZh) "zh-CN" else "en"
+                                    view?.evaluateJavascript(
+                                        "if(!localStorage.getItem('gpucap_lang')){localStorage.setItem('gpucap_lang','$code');}",
+                                        null,
+                                    )
                                     isRefreshing = false
                                     progress = 100
                                     if (errorMessage == null) {
@@ -279,7 +307,10 @@ fun WebMonitorScreen(
                                         isRefreshing = false
                                         progress = 100
                                         connStatus = ConnStatus.Failed
-                                        errorMessage = "无法连接到 $url\n请检查电脑端是否已开启「网页服务」，且网络链路互通。"
+                                        errorMessage = t(
+                                            "无法连接到 $url\n请检查电脑端是否已开启「网页服务」，且网络链路互通。",
+                                            "Could not connect to $url.\nMake sure the Windows host web service is running and reachable.",
+                                        )
                                     }
                                 }
                             }
@@ -329,7 +360,7 @@ fun WebMonitorScreen(
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "无法连接到 GPUCap 服务",
+                                text = t("无法连接到 GPUCap 服务", "Unable to Connect to GPUCap"),
                                 color = GpuColors.BadLight,
                                 fontSize = 17.sp,
                                 fontWeight = FontWeight.Bold,
@@ -357,7 +388,7 @@ fun WebMonitorScreen(
                                 contentPadding = PaddingValues(vertical = 12.dp),
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text("重新连接", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text(t("重新连接", "Reconnect"), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                             Spacer(modifier = Modifier.height(10.dp))
                             OutlinedButton(
@@ -368,7 +399,7 @@ fun WebMonitorScreen(
                                 contentPadding = PaddingValues(vertical = 12.dp),
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text("返回选择或扫码连接", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text(t("返回选择或扫码连接", "Back to Host Selection"), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }

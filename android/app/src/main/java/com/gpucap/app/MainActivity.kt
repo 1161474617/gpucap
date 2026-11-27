@@ -19,9 +19,18 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -38,6 +47,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -81,8 +93,8 @@ class MainActivity : ComponentActivity() {
                     } else {
                         scope.launch {
                             val res = snackbarHostState.showSnackbar(
-                                message = "需要相机权限才能扫描二维码",
-                                actionLabel = "去设置",
+                                message = if (uiState.isZh) "需要相机权限才能扫描二维码" else "Camera permission is required to scan QR codes",
+                                actionLabel = if (uiState.isZh) "去设置" else "Settings",
                                 duration = SnackbarDuration.Long,
                             )
                             if (res == SnackbarResult.ActionPerformed) {
@@ -119,7 +131,7 @@ class MainActivity : ComponentActivity() {
                                     finish()
                                 } else {
                                     lastBackAt = now
-                                    vm.emitToast("再按一次返回键退出，或点击右上角「切换」")
+                                    vm.emitToast(if (uiState.isZh) "再按一次返回键退出，或点击右上角「切换」" else "Press back again to exit, or tap Switch")
                                 }
                             }
                         }
@@ -151,22 +163,81 @@ class MainActivity : ComponentActivity() {
                                     onSelectHistory = vm::openAndSave,
                                     onRemoveHistory = vm::removeHistory,
                                     onPingAll = vm::pingAll,
+                                    isZh = uiState.isZh,
+                                    onToggleLang = { vm.setAppLang(!uiState.isZh) },
                                 )
 
                                 AppPage.Web -> WebMonitorScreen(
                                     url = uiState.currentUrl,
+                                    isZh = uiState.isZh,
+                                    onToggleLang = { vm.setAppLang(!uiState.isZh) },
                                     onSwitchHost = vm::switchToConnect,
                                     onToast = vm::emitToast,
                                     onCanGoBackChanged = { webBackHandler = it },
                                 )
 
                                 AppPage.QrScan -> QrScannerScreen(
+                                    isZh = uiState.isZh,
                                     onQrDetected = vm::handleQrDetected,
                                     onToast = vm::emitToast,
                                     onClose = vm::closeQrScanner,
                                 )
                             }
                         }
+                    }
+
+                    if (uiState.ready && uiState.showLangPicker) {
+                        AlertDialog(
+                            onDismissRequest = {},
+                            containerColor = GpuColors.Card,
+                            title = {
+                                Text(
+                                    text = "Choose Language / 请选择语言",
+                                    color = androidx.compose.ui.graphics.Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 17.sp,
+                                )
+                            },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text(
+                                        text = "Select your preferred display language. You can change this anytime.\n请选择显示语言，之后可随时在界面切换。",
+                                        color = GpuColors.Dim,
+                                        fontSize = 13.sp,
+                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Button(
+                                            onClick = { vm.setAppLang(false) },
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = GpuColors.Accent,
+                                                contentColor = GpuColors.AccentDark,
+                                            ),
+                                            contentPadding = PaddingValues(vertical = 11.dp),
+                                            modifier = Modifier.weight(1f),
+                                        ) {
+                                            Text("English", fontWeight = FontWeight.Bold)
+                                        }
+                                        Button(
+                                            onClick = { vm.setAppLang(true) },
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = GpuColors.Emerald,
+                                                contentColor = GpuColors.EmeraldText,
+                                            ),
+                                            contentPadding = PaddingValues(vertical = 11.dp),
+                                            modifier = Modifier.weight(1f),
+                                        ) {
+                                            Text("简体中文", fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {},
+                        )
                     }
 
                     SnackbarHost(

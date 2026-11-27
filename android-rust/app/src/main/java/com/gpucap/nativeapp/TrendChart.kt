@@ -134,13 +134,13 @@ fun NativeTrendCard(
                         fontFamily = FontFamily.Monospace,
                     )
                     Text(
-                        text = "高 ${fmt(maxVal)}",
+                        text = LocalStrings.current.t("高 ${fmt(maxVal)}", "Hi ${fmt(maxVal)}"),
                         color = GpuColors.Dim,
                         fontSize = if (compact) 10.sp else 10.5.sp,
                         fontFamily = FontFamily.Monospace,
                     )
                     Text(
-                        text = "低 ${fmt(minVal)}",
+                        text = LocalStrings.current.t("低 ${fmt(minVal)}", "Lo ${fmt(minVal)}"),
                         color = GpuColors.Dim,
                         fontSize = if (compact) 10.sp else 10.5.sp,
                         fontFamily = FontFamily.Monospace,
@@ -160,7 +160,8 @@ fun NativeTrendCard(
                         .background(GpuColors.InputBg, RoundedCornerShape(8.dp)),
                 ) {
                     Text(
-                        text = if (pts.isEmpty()) "暂无采样数据" else "采样累积中...",
+                        text = if (pts.isEmpty()) LocalStrings.current.t("暂无采样数据", "No sample data")
+                        else LocalStrings.current.t("采样累积中...", "Collecting samples..."),
                         color = GpuColors.Dim,
                         fontSize = 12.sp,
                     )

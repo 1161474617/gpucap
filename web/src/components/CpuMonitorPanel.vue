@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { t, tl } from '../i18n'
 
 const props = defineProps({
   cpu: { type: Object, required: true },
@@ -42,27 +43,27 @@ const cpuTrendSvg = computed(() => {
 <template>
   <div class="flex flex-col gap-3">
     <div v-if="liveAlertBanner" class="flex items-center justify-between gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
-      <span class="truncate font-medium">实时告警：{{ liveAlertBanner }}</span>
-      <button @click="emit('dismiss-banner')" class="shrink-0 text-rose-400 hover:text-white">关闭</button>
+      <span class="truncate font-medium">{{ tl('实时告警：', 'Live Alert: ') }}{{ liveAlertBanner }}</span>
+      <button @click="emit('dismiss-banner')" class="shrink-0 text-rose-400 hover:text-white">{{ tl('关闭', 'Dismiss') }}</button>
     </div>
 
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div class="text-xs text-slate-400">
-        {{ liveRunning ? '实时监测中（纯内存缓冲）' : '已停止监测（保留本次快照）' }}
+        {{ liveRunning ? t.liveRunningDesc : t.liveStoppedDesc }}
         <span v-if="stats?.cpu_usage" class="ml-2 font-mono text-slate-300">
-          · 占用均 {{ stats.cpu_usage.avg }}% / 峰 {{ stats.cpu_usage.max }}%
+          · Avg {{ stats.cpu_usage.avg }}% / Peak {{ stats.cpu_usage.max }}%
         </span>
       </div>
       <div class="flex items-center gap-2">
         <button @click="emit('copy-summary')" class="rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-300 hover:bg-sky-500/20">
-          复制诊断摘要
+          {{ t.copySummary }}
         </button>
         <button
           v-if="!liveRunning && !readOnlyRemote"
           @click="emit('save-session')"
           class="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20"
         >
-          补存为完整会话
+          {{ t.saveSession }}
         </button>
       </div>
     </div>
@@ -87,14 +88,14 @@ const cpuTrendSvg = computed(() => {
         <div class="min-w-0 flex-1">
           <div class="truncate text-xs font-bold text-white">{{ cpu.brand }}</div>
           <div class="mt-1 font-mono text-xs text-slate-300">
-            温度
+            {{ tl('温度', 'Temp') }}
             <strong :class="(cpu.temp_c || 0) >= 85 ? 'text-rose-400' : (cpu.temp_c || 0) >= 75 ? 'text-amber-400' : 'text-sky-300'">
               {{ cpu.temp_c !== null && cpu.temp_c !== undefined ? `${cpu.temp_c.toFixed(1)}°C` : '—' }}
             </strong>
-            · {{ cpu.physical_cores }}核{{ cpu.logical_cores }}框
+            · {{ tl(`${cpu.physical_cores}核${cpu.logical_cores}框`, `${cpu.physical_cores}C/${cpu.logical_cores}T`) }}
           </div>
           <div class="mt-0.5 font-mono text-[11px] text-slate-400">
-            均频 {{ cpu.avg_freq_mhz }} MHz · 峰值 {{ cpu.max_freq_mhz }} MHz
+            {{ tl('均频', 'Avg') }} {{ cpu.avg_freq_mhz }} MHz · {{ tl('峰值', 'Max') }} {{ cpu.max_freq_mhz }} MHz
           </div>
         </div>
       </div>
@@ -115,8 +116,8 @@ const cpuTrendSvg = computed(() => {
           </div>
         </div>
         <div>
-          <div class="text-xs font-bold text-blue-400">P 性能核 ×{{ cpu.p_count }}</div>
-          <div class="mt-1 font-mono text-xs text-slate-300">平均 {{ cpu.p_freq_mhz }} MHz</div>
+          <div class="text-xs font-bold text-blue-400">{{ tl('P 性能核', 'P-Core') }} ×{{ cpu.p_count }}</div>
+          <div class="mt-1 font-mono text-xs text-slate-300">{{ tl('平均', 'Avg') }} {{ cpu.p_freq_mhz }} MHz</div>
         </div>
       </div>
 
@@ -136,8 +137,8 @@ const cpuTrendSvg = computed(() => {
           </div>
         </div>
         <div>
-          <div class="text-xs font-bold text-emerald-400">E 能效核 ×{{ cpu.e_count }}</div>
-          <div class="mt-1 font-mono text-xs text-slate-300">平均 {{ cpu.e_freq_mhz }} MHz</div>
+          <div class="text-xs font-bold text-emerald-400">{{ tl('E 能效核', 'E-Core') }} ×{{ cpu.e_count }}</div>
+          <div class="mt-1 font-mono text-xs text-slate-300">{{ tl('平均', 'Avg') }} {{ cpu.e_freq_mhz }} MHz</div>
         </div>
       </div>
     </div>
@@ -145,9 +146,9 @@ const cpuTrendSvg = computed(() => {
     <!-- 首屏中区：60 秒实时趋势与异常点标注 -->
     <div v-if="cpuTrendSvg" class="rounded-xl border border-white/[0.07] bg-[#0b0f17] p-3">
       <div class="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-        <span class="font-bold text-white">CPU 60 秒实时趋势与异常点标注</span>
+        <span class="font-bold text-white">{{ t.cpuTrendTitle }}</span>
         <span class="font-mono text-[11px] text-slate-400">
-          {{ cpuTrendSvg.firstTs }} ~ {{ cpuTrendSvg.lastTs }} · 蓝线占用% · 橙线温度°C · 红点异常
+          {{ cpuTrendSvg.firstTs }} ~ {{ cpuTrendSvg.lastTs }} · {{ tl('蓝线占用% · 橙线温度°C · 红点异常', 'Blue: Usage% · Orange: Temp°C · Red: Alert') }}
         </span>
       </div>
       <svg :viewBox="`0 0 ${cpuTrendSvg.w} ${cpuTrendSvg.h}`" class="h-32 w-full">
@@ -161,7 +162,7 @@ const cpuTrendSvg = computed(() => {
           :key="i"
           :cx="a.x" :cy="a.y" r="4" fill="#f43f5e" stroke="#0b0f17" stroke-width="1.5"
         >
-          <title>{{ a.ts }} 触发异常/降频（占用 {{ a.usage.toFixed(1) }}%）</title>
+          <title>{{ tl(`${a.ts} 触发异常/降频（占用 ${a.usage.toFixed(1)}%）`, `${a.ts} Alert/Throttle (Usage ${a.usage.toFixed(1)}%)`) }}</title>
         </circle>
       </svg>
     </div>
@@ -169,7 +170,7 @@ const cpuTrendSvg = computed(() => {
     <!-- 首屏下区：Top 5 CPU / 内存进程榜 -->
     <div v-if="(cpu.top_cpu_procs && cpu.top_cpu_procs.length) || (cpu.top_mem_procs && cpu.top_mem_procs.length)" class="grid grid-cols-1 gap-3 md:grid-cols-2">
       <div class="rounded-xl border border-white/[0.07] bg-[#0b0f17] p-3">
-        <div class="mb-2 text-xs font-bold text-sky-400">Top 5 CPU 占用进程</div>
+        <div class="mb-2 text-xs font-bold text-sky-400">{{ t.topCpuProcs }}</div>
         <div class="flex flex-col gap-1.5 font-mono text-xs">
           <div v-for="p in cpu.top_cpu_procs || []" :key="`cpu-${p.pid}`" class="flex items-center justify-between gap-2">
             <span class="truncate text-slate-200">{{ p.name }} <span class="text-slate-500">({{ p.pid }})</span></span>
@@ -178,7 +179,7 @@ const cpuTrendSvg = computed(() => {
         </div>
       </div>
       <div class="rounded-xl border border-white/[0.07] bg-[#0b0f17] p-3">
-        <div class="mb-2 text-xs font-bold text-emerald-400">Top 5 内存占用进程</div>
+        <div class="mb-2 text-xs font-bold text-emerald-400">{{ t.topMemProcs }}</div>
         <div class="flex flex-col gap-1.5 font-mono text-xs">
           <div v-for="p in cpu.top_mem_procs || []" :key="`mem-${p.pid}`" class="flex items-center justify-between gap-2">
             <span class="truncate text-slate-200">{{ p.name }} <span class="text-slate-500">({{ p.pid }})</span></span>
@@ -194,7 +195,7 @@ const cpuTrendSvg = computed(() => {
         @click="coresExpanded = !coresExpanded"
         class="self-start rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs text-slate-300 hover:bg-white/[0.06]"
       >
-        {{ coresExpanded ? '▼ 收起' : '▶ 展开' }}逐逻辑核心环形负载（{{ cpu.cores.length }} 核）
+        {{ coresExpanded ? `▼ ${t.collapseCores}` : `▶ ${t.expandCores}` }}（{{ cpu.cores.length }}）
       </button>
       <div v-if="coresExpanded" class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10">
         <div

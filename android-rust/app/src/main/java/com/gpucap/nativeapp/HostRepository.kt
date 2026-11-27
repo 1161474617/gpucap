@@ -45,6 +45,7 @@ class HostRepository(private val context: Context) {
         private val KEY_HISTORY_JSON = stringPreferencesKey("history_urls_json")
         private val KEY_KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
         private val KEY_AUTH_PIN = stringPreferencesKey("auth_pin")
+        private val KEY_APP_LANG = stringPreferencesKey("app_lang")
     }
 
     private val engine = GpucapEngine()
@@ -60,6 +61,16 @@ class HostRepository(private val context: Context) {
 
     val historyFlow: Flow<List<String>> = context.nativeDataStore.data.map { prefs ->
         decodeHistory(prefs[KEY_HISTORY_JSON])
+    }
+
+    val appLangRawFlow: Flow<String> = context.nativeDataStore.data.map { prefs ->
+        prefs[KEY_APP_LANG] ?: ""
+    }
+
+    suspend fun setAppLang(code: String) {
+        context.nativeDataStore.edit { prefs ->
+            prefs[KEY_APP_LANG] = code
+        }
     }
 
     val keepScreenOnFlow: Flow<Boolean> = context.nativeDataStore.data.map { prefs ->

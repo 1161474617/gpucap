@@ -27,6 +27,12 @@ extension Color {
     }
 }
 
+/// 界面语言枚举
+enum AppLang: String {
+    case en = "en"
+    case zhCn = "zh-CN"
+}
+
 /// 连接状态指示点状态
 enum ConnectionStatus {
     case connecting
@@ -39,8 +45,11 @@ enum ConnectionStatus {
 final class AppState: ObservableObject {
     private static let keyLastUrl = "gpucap_last_url"
     private static let keyHistory = "gpucap_history_urls"
+    private static let keyLang = "gpucap_lang"
     static let defaultPort = 8787
 
+    @Published var lang: AppLang = .en
+    @Published var showLangPicker: Bool = false
     @Published var isShowingWeb: Bool = false
     @Published var currentUrl: String = ""
     @Published var inputUrl: String = ""
@@ -54,12 +63,39 @@ final class AppState: ObservableObject {
     private var toastTask: Task<Void, Never>?
 
     init() {
+        let savedLang = UserDefaults.standard.string(forKey: Self.keyLang) ?? ""
+        if savedLang == AppLang.zhCn.rawValue {
+            lang = .zhCn
+            showLangPicker = false
+        } else if savedLang == AppLang.en.rawValue {
+            lang = .en
+            showLangPicker = false
+        } else {
+            // 首次运行默认先以英文渲染底层，同时弹出双语选择窗
+            lang = .en
+            showLangPicker = true
+        }
+
         historyUrls = loadHistory()
         let saved = UserDefaults.standard.string(forKey: Self.keyLastUrl) ?? ""
         inputUrl = saved
         if !saved.isEmpty {
             openWebUrl(saved)
         }
+    }
+
+    var isZh: Bool { lang == .zhCn }
+
+    /// 按当前语言返回双语文案
+    func tr(_ zh: String, _ en: String) -> String {
+        isZh ? zh : en
+    }
+
+    /// 设置并持久化语言偏好，同时关闭首次选择引导
+    func setLanguage(_ newLang: AppLang) {
+        lang = newLang
+        showLangPicker = false
+        UserDefaults.standard.set(newLang.rawValue, forKey: Self.keyLang)
     }
 
     /// 规范化并校验用户输入或二维码识别到的地址（提取内嵌 URL、校验主机、补全默认端口）

@@ -109,6 +109,7 @@ fun NativeMonitorScreen(
     uiState: MainUiState,
     vm: MainViewModel,
 ) {
+    val s = LocalStrings.current
     val context = LocalContext.current
     val data = uiState.monitorState
     val latestGpu = data.gpuRows.lastOrNull()
@@ -150,7 +151,7 @@ fun NativeMonitorScreen(
                         )
                         Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = if (data.collectorRunning) "停止采集" else "启动采集",
+                            text = if (data.collectorRunning) s.t("停止采集", "Stop Cap") else s.t("启动采集", "Start Cap"),
                             color = if (data.collectorRunning) GpuColors.BadLight else GpuColors.EmeraldText,
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold,
@@ -181,7 +182,7 @@ fun NativeMonitorScreen(
                         )
                         Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = if (data.liveRunning) "停止监测" else "实时监测",
+                            text = if (data.liveRunning) s.t("停止监测", "Stop Live") else s.t("实时监测", "Live Mon"),
                             color = if (data.liveRunning) GpuColors.WarnLight else GpuColors.Accent,
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold,
@@ -204,7 +205,7 @@ fun NativeMonitorScreen(
                     modifier = m,
                 ) {
                     Text(
-                        text = data.heartbeat.text,
+                        text = s.trBackend(data.heartbeat.text),
                         color = hbColor,
                         fontSize = 11.5.sp,
                         maxLines = 1,
@@ -234,7 +235,7 @@ fun NativeMonitorScreen(
                             )
                             Spacer(modifier = Modifier.width(3.dp))
                             Text(
-                                text = "告警 ${data.alertCount}",
+                                text = s.t("告警 ${data.alertCount}", "Alerts ${data.alertCount}"),
                                 color = GpuColors.WarnLight,
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -285,7 +286,7 @@ fun NativeMonitorScreen(
                     Spacer(modifier = Modifier.weight(1f))
                     SmallActionChip(
                         icon = Icons.Rounded.OpenInFull,
-                        label = "大字",
+                        label = s.t("大字", "HUD"),
                         fg = if (uiState.bigHudMode) GpuColors.Accent else GpuColors.Dim,
                         bg = if (uiState.bigHudMode) GpuColors.AccentBg else GpuColors.SurfaceBtn,
                         border = if (uiState.bigHudMode) GpuColors.AccentBorder else GpuColors.Border,
@@ -293,7 +294,7 @@ fun NativeMonitorScreen(
                     )
                     SmallActionChip(
                         icon = if (uiState.keepScreenOn) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
-                        label = "常亮",
+                        label = s.t("常亮", "Awake"),
                         fg = if (uiState.keepScreenOn) GpuColors.EmeraldLight else GpuColors.Dim,
                         bg = if (uiState.keepScreenOn) GpuColors.EmeraldBg else GpuColors.SurfaceBtn,
                         border = if (uiState.keepScreenOn) GpuColors.EmeraldBorder else GpuColors.Border,
@@ -309,7 +310,7 @@ fun NativeMonitorScreen(
                     )
                     SmallActionChip(
                         icon = Icons.Rounded.SwapHoriz,
-                        label = "切换",
+                        label = s.switchHost,
                         fg = GpuColors.Accent,
                         bg = GpuColors.AccentBg,
                         border = GpuColors.AccentBorder,
@@ -366,7 +367,7 @@ fun NativeMonitorScreen(
 
                         SmallActionChip(
                             icon = Icons.Rounded.SwapHoriz,
-                            label = "切换",
+                            label = s.switchHost,
                             fg = GpuColors.Accent,
                             bg = GpuColors.AccentBg,
                             border = GpuColors.AccentBorder,
@@ -408,7 +409,7 @@ fun NativeMonitorScreen(
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "无法连接到 GPUCap 服务",
+                                text = s.t("无法连接到 GPUCap 服务", "Unable to Connect to GPUCap"),
                                 color = GpuColors.BadLight,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
@@ -430,7 +431,7 @@ fun NativeMonitorScreen(
                                 ),
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text("重新连接", fontWeight = FontWeight.Bold)
+                                Text(s.t("重新连接", "Reconnect"), fontWeight = FontWeight.Bold)
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             OutlinedButton(
@@ -439,7 +440,7 @@ fun NativeMonitorScreen(
                                 border = BorderStroke(1.dp, GpuColors.Accent),
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text("返回切换主机", color = GpuColors.Accent)
+                                Text(s.t("返回切换主机", "Back to Host Selection"), color = GpuColors.Accent)
                             }
                         }
                     }
@@ -470,7 +471,7 @@ fun NativeMonitorScreen(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 ) {
                                     Text(
-                                        text = "实时告警：$banner",
+                                        text = s.t("实时告警：$banner", "Live Alert: $banner"),
                                         color = GpuColors.BadLight,
                                         fontSize = 11.5.sp,
                                         fontWeight = FontWeight.SemiBold,
@@ -479,7 +480,7 @@ fun NativeMonitorScreen(
                                         modifier = Modifier.weight(1f),
                                     )
                                     Text(
-                                        text = "关闭",
+                                        text = s.closeBtn,
                                         color = Color.White,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
@@ -498,9 +499,12 @@ fun NativeMonitorScreen(
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 val drv = env.driverVersion.ifBlank { "—" }
-                                val chg = env.driverChangedFrom?.let { " (变更自 $it)" } ?: ""
+                                val chg = env.driverChangedFrom?.let { s.t(" (变更自 $it)", " (from $it)") } ?: ""
                                 Text(
-                                    text = "${env.gpuName} · 驱动 $drv$chg · ${env.pcieMax} · 电源 ${env.powerPlan}",
+                                    text = s.t(
+                                        "${env.gpuName} · 驱动 $drv$chg · ${env.pcieMax} · 电源 ${env.powerPlan}",
+                                        "${env.gpuName} · Driver $drv$chg · ${env.pcieMax} · Power ${env.powerPlan}",
+                                    ),
                                     color = if (env.driverChangedFrom != null) GpuColors.WarnLight else GpuColors.Dim,
                                     fontSize = 10.5.sp,
                                     fontFamily = FontFamily.Monospace,
@@ -547,12 +551,13 @@ fun NativeMonitorScreen(
                                     onExport = {
                                         val sess = uiState.selectedSession
                                         if (sess.isEmpty()) {
-                                            vm.emitToast("当前没有可导出的会话")
+                                            vm.emitToast(s.t("当前没有可导出的会话", "No session selected to export"))
                                         } else {
                                             exportZipViaDownloadManager(
                                                 context = context,
                                                 baseUrl = uiState.currentUrl,
                                                 session = sess,
+                                                strings = s,
                                                 onToast = vm::emitToast,
                                             )
                                         }
@@ -574,11 +579,14 @@ fun NativeMonitorScreen(
                                     DetailEntryCard(
                                         icon = Icons.Rounded.TableChart,
                                         accent = GpuColors.Accent,
-                                        title = "实时 GPU 采样表",
+                                        title = s.t("实时 GPU 采样表", "Live GPU Telemetry"),
                                         subtitle = latestGpu?.let {
-                                            "最新 ${it.ts} · 温度 ${it.temp}°C · 功耗 ${it.power}W · 占用 ${it.util}%"
-                                        } ?: "固定时间列宽表，点击行查看完整 13 项指标",
-                                        badge = "${data.gpuRows.size} 条",
+                                            s.t(
+                                                "最新 ${it.ts} · 温度 ${it.temp}°C · 功耗 ${it.power}W · 占用 ${it.util}%",
+                                                "Latest ${it.ts} · Temp ${it.temp}°C · Power ${it.power}W · Util ${it.util}%",
+                                            )
+                                        } ?: s.t("固定时间列宽表，点击行查看完整 13 项指标", "Fixed time-column table, tap row for 13 metrics"),
+                                        badge = s.t("${data.gpuRows.size} 条", "${data.gpuRows.size} rows"),
                                         selected = isSplit && uiState.activeTab == MonitorTab.Gpu,
                                         compact = isSplit,
                                         onClick = { onCardClick(MonitorTab.Gpu) },
@@ -590,9 +598,12 @@ fun NativeMonitorScreen(
                                         DetailEntryCard(
                                             icon = Icons.Rounded.Memory,
                                             accent = Color(0xFF38BDF8),
-                                            title = "CPU 实时监测",
-                                            subtitle = "温度 $tStr · 总占用 ${String.format(Locale.US, "%.1f", cpu.totalUsage)}% · ${cpu.avgFreqMhz}MHz",
-                                            badge = "${cpu.logicalCores} 核",
+                                            title = s.t("CPU 实时监测", "CPU Live Monitor"),
+                                            subtitle = s.t(
+                                                "温度 $tStr · 总占用 ${String.format(Locale.US, "%.1f", cpu.totalUsage)}% · ${cpu.avgFreqMhz}MHz",
+                                                "Temp $tStr · Usage ${String.format(Locale.US, "%.1f", cpu.totalUsage)}% · ${cpu.avgFreqMhz}MHz",
+                                            ),
+                                            badge = s.t("${cpu.logicalCores} 核", "${cpu.logicalCores}C"),
                                             selected = isSplit && uiState.activeTab == MonitorTab.Cpu,
                                             compact = isSplit,
                                             onClick = { onCardClick(MonitorTab.Cpu) },
@@ -603,9 +614,12 @@ fun NativeMonitorScreen(
                                     DetailEntryCard(
                                         icon = Icons.Rounded.ShowChart,
                                         accent = GpuColors.Violet,
-                                        title = "趋势曲线",
-                                        subtitle = "温度 / 热点 / 温差 / 功耗 / 频率 / 内存等 12 项折线图",
-                                        badge = "${uiState.trendWindow} 点窗口",
+                                        title = s.t("趋势曲线", "Trend Charts"),
+                                        subtitle = s.t(
+                                            "温度 / 热点 / 温差 / 功耗 / 频率 / 内存等 12 项折线图",
+                                            "12 telemetry charts: Temp / Hotspot / Delta / Power / Clocks / RAM",
+                                        ),
+                                        badge = s.t("${uiState.trendWindow} 点窗口", "${uiState.trendWindow} pts"),
                                         selected = isSplit && uiState.activeTab == MonitorTab.Trend,
                                         compact = isSplit,
                                         onClick = { onCardClick(MonitorTab.Trend) },
@@ -615,11 +629,11 @@ fun NativeMonitorScreen(
                                     DetailEntryCard(
                                         icon = Icons.Rounded.EventNote,
                                         accent = GpuColors.EmeraldLight,
-                                        title = "系统事件",
+                                        title = s.t("系统事件", "System Events"),
                                         subtitle = data.events.lastOrNull()?.let {
                                             "${it.time} · ${it.source}：${it.message}"
-                                        } ?: "支持关键字过滤与完整事件详情查看",
-                                        badge = "${data.events.size} 条",
+                                        } ?: s.t("支持关键字过滤与完整事件详情查看", "Keyword filter and full event inspection"),
+                                        badge = s.t("${data.events.size} 条", "${data.events.size}"),
                                         selected = isSplit && uiState.activeTab == MonitorTab.Events,
                                         compact = isSplit,
                                         onClick = { onCardClick(MonitorTab.Events) },
@@ -629,11 +643,11 @@ fun NativeMonitorScreen(
                                     DetailEntryCard(
                                         icon = Icons.Rounded.BugReport,
                                         accent = GpuColors.Orange,
-                                        title = "WER 崩溃与转储",
+                                        title = s.t("WER 崩溃与转储", "WER & Crash Dumps"),
                                         subtitle = data.wer.lastOrNull()?.let {
                                             "${it.time} · ${it.message}"
-                                        } ?: "监测 Windows 错误报告与应用程序崩溃转储",
-                                        badge = "${data.wer.size} 条",
+                                        } ?: s.t("监测 Windows 错误报告与应用程序崩溃转储", "Windows Error Reporting and crash dumps"),
+                                        badge = s.t("${data.wer.size} 条", "${data.wer.size}"),
                                         selected = isSplit && uiState.activeTab == MonitorTab.Wer,
                                         compact = isSplit,
                                         onClick = { onCardClick(MonitorTab.Wer) },
@@ -643,9 +657,9 @@ fun NativeMonitorScreen(
                                     DetailEntryCard(
                                         icon = Icons.Rounded.WarningAmber,
                                         accent = if (data.alertCount > 0) GpuColors.WarnLight else GpuColors.Dim,
-                                        title = "告警与事故取证",
-                                        subtitle = "阈值告警记录、事故取证包及摘要/日志预览",
-                                        badge = "${data.alerts.size} 告警",
+                                        title = s.t("告警与事故取证", "Alerts & Forensics"),
+                                        subtitle = s.t("阈值告警记录、事故取证包及摘要/日志预览", "Threshold alerts, incident bundles & logs"),
+                                        badge = s.t("${data.alerts.size} 告警", "${data.alerts.size}"),
                                         selected = isSplit && uiState.activeTab == MonitorTab.Alerts,
                                         compact = isSplit,
                                         onClick = { onCardClick(MonitorTab.Alerts) },
@@ -660,7 +674,7 @@ fun NativeMonitorScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
                                     Text(
-                                        text = "采集数据明细",
+                                        text = s.t("采集数据明细", "Capture Telemetry"),
                                         color = GpuColors.Dim,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Medium,
@@ -683,7 +697,7 @@ fun NativeMonitorScreen(
                                             )
                                             Spacer(modifier = Modifier.width(3.dp))
                                             Text(
-                                                text = "全屏分页",
+                                                text = s.t("全屏分页", "Fullscreen"),
                                                 color = GpuColors.Accent,
                                                 fontSize = 10.5.sp,
                                                 fontWeight = FontWeight.SemiBold,
@@ -832,10 +846,13 @@ fun NativeMonitorScreen(
         AlertDialog(
             onDismissRequest = { deleteConfirm = false },
             containerColor = GpuColors.Card,
-            title = { Text("确认删除会话", color = Color.White, fontWeight = FontWeight.Bold) },
+            title = { Text(s.t("确认删除会话", "Delete Session"), color = Color.White, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    text = "确定要永久删除会话「${uiState.selectedSession}」及其关联数据吗？",
+                    text = s.t(
+                        "确定要永久删除会话「${uiState.selectedSession}」及其关联数据吗？",
+                        "Permanently delete session '${uiState.selectedSession}' and its telemetry data?",
+                    ),
                     color = GpuColors.Text,
                     fontSize = 13.sp,
                 )
@@ -847,11 +864,11 @@ fun NativeMonitorScreen(
                         vm.deleteCurrentSession()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = GpuColors.Bad),
-                ) { Text("确认删除", color = Color.White) }
+                ) { Text(s.t("确认删除", "Delete"), color = Color.White) }
             },
             dismissButton = {
                 TextButton(onClick = { deleteConfirm = false }) {
-                    Text("取消", color = GpuColors.Dim)
+                    Text(s.cancelBtn, color = GpuColors.Dim)
                 }
             },
         )
@@ -863,11 +880,15 @@ fun NativeMonitorScreen(
         AlertDialog(
             onDismissRequest = vm::dismissPinDialog,
             containerColor = GpuColors.Card,
-            title = { Text("需要主机访问口令", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            title = { Text(s.t("需要主机访问口令", "Host PIN Required"), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("电脑端已启用访问口令保护，验证后方可拉取监控数据。", color = GpuColors.Dim, fontSize = 12.sp)
-                    SettingField("访问口令", pinVal) { pinVal = it }
+                    Text(
+                        s.t("电脑端已启用访问口令保护，验证后方可拉取监控数据。", "Host access PIN protection is enabled. Verify to fetch telemetry."),
+                        color = GpuColors.Dim,
+                        fontSize = 12.sp,
+                    )
+                    SettingField(s.t("访问口令", "Access PIN"), pinVal) { pinVal = it }
                     uiState.pinError?.let { err ->
                         Text(err, color = GpuColors.BadLight, fontSize = 11.5.sp)
                     }
@@ -877,10 +898,10 @@ fun NativeMonitorScreen(
                 Button(
                     onClick = { vm.submitAuthPin(pinVal) },
                     colors = ButtonDefaults.buttonColors(containerColor = GpuColors.Accent, contentColor = GpuColors.AccentDark),
-                ) { Text("验证解锁", fontWeight = FontWeight.Bold) }
+                ) { Text(s.t("验证解锁", "Unlock"), fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
-                TextButton(onClick = vm::dismissPinDialog) { Text("取消", color = GpuColors.Dim) }
+                TextButton(onClick = vm::dismissPinDialog) { Text(s.cancelBtn, color = GpuColors.Dim) }
             },
         )
     }
@@ -890,6 +911,8 @@ fun NativeMonitorScreen(
         RemoteSettingsDialog(
             cfg = uiState.settingsConfig,
             gpus = uiState.gpuDevices,
+            appLang = uiState.appLang,
+            onChangeAppLang = vm::setAppLang,
             onUpdate = vm::updateSettingsConfig,
             onDismiss = vm::closeSettings,
             onSave = vm::saveSettings,
@@ -916,8 +939,9 @@ private fun KpiGrid(
     deltaWarn: Double,
     onToggleStartup: () -> Unit,
 ) {
+    val s = LocalStrings.current
     val tempCard: @Composable (Modifier) -> Unit = { mod ->
-        KpiCard(modifier = mod, title = "显卡温度 / 功耗") {
+        KpiCard(modifier = mod, title = s.t("显卡温度 / 功耗", "GPU Temp / Power")) {
             Row(
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -932,7 +956,7 @@ private fun KpiGrid(
                 )
                 if (!latestGpu?.hotspot.isNullOrEmpty()) {
                     Text(
-                        text = "热点${latestGpu!!.hotspot}°",
+                        text = s.t("热点${latestGpu!!.hotspot}°", "HS ${latestGpu!!.hotspot}°"),
                         color = GpuColors.Rose,
                         fontSize = 10.5.sp,
                         fontFamily = FontFamily.Monospace,
@@ -961,7 +985,7 @@ private fun KpiGrid(
             data.stats.gpuTemp?.let { st ->
                 Spacer(modifier = Modifier.height(1.dp))
                 Text(
-                    text = "极值 ${st.min.toInt()}~${st.max.toInt()}°C · 均${st.avg.toInt()}°C",
+                    text = s.t("极值 ${st.min.toInt()}~${st.max.toInt()}°C · 均${st.avg.toInt()}°C", "Range ${st.min.toInt()}~${st.max.toInt()}°C · Avg ${st.avg.toInt()}°C"),
                     color = GpuColors.Dim,
                     fontSize = 9.5.sp,
                     fontFamily = FontFamily.Monospace,
@@ -983,7 +1007,7 @@ private fun KpiGrid(
     }
 
     val coreCard: @Composable (Modifier) -> Unit = { mod ->
-        KpiCard(modifier = mod, title = "核心频率 / 链路") {
+        KpiCard(modifier = mod, title = s.t("核心频率 / 链路", "Core Clock / Link")) {
             Row(
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -998,7 +1022,7 @@ private fun KpiGrid(
                     maxLines = 1,
                 )
                 Text(
-                    text = if (latestGpu?.pcieDrop == true) "${latestGpu.pcie} 降速" else (latestGpu?.pcie ?: ""),
+                    text = if (latestGpu?.pcieDrop == true) s.t("${latestGpu.pcie} 降速", "${latestGpu.pcie} Drop") else (latestGpu?.pcie ?: ""),
                     color = if (latestGpu?.pcieDrop == true) GpuColors.BadLight else GpuColors.Accent,
                     fontSize = 10.5.sp,
                     fontFamily = FontFamily.Monospace,
@@ -1008,7 +1032,7 @@ private fun KpiGrid(
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = buildString {
-                    append("占用 ${latestGpu?.util ?: "—"}% · 显存 ${latestGpu?.vram ?: "—"}MB")
+                    append(s.t("占用 ${latestGpu?.util ?: "—"}% · 显存 ${latestGpu?.vram ?: "—"}MB", "Util ${latestGpu?.util ?: "—"}% · VRAM ${latestGpu?.vram ?: "—"}MB"))
                     if ((latestGpu?.vramPct ?: 0.0) > 0.0) {
                         append(" (${latestGpu!!.vramPct.toInt()}%)")
                     }
@@ -1034,7 +1058,7 @@ private fun KpiGrid(
     }
 
     val memCard: @Composable (Modifier) -> Unit = { mod ->
-        KpiCard(modifier = mod, title = "系统内存提交") {
+        KpiCard(modifier = mod, title = s.t("系统内存提交", "System Memory")) {
             val latestMem = data.memPoints.lastOrNull()
             val memMain = data.memSummary
                 .replace("内存", "")
@@ -1080,8 +1104,8 @@ private fun KpiGrid(
     }
 
     val procCard: @Composable (Modifier) -> Unit = { mod ->
-        KpiCard(modifier = mod, title = "目标游戏进程") {
-            val proc = data.procSummary.ifEmpty { "—" }
+        KpiCard(modifier = mod, title = s.t("目标游戏进程", "Game Process")) {
+            val proc = s.trBackend(data.procSummary.ifEmpty { "—" })
             val running = proc != "—" && !proc.contains("未运行")
             Text(
                 text = proc,
@@ -1097,7 +1121,7 @@ private fun KpiGrid(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("开机自启", color = GpuColors.Dim, fontSize = 10.5.sp)
+                Text(s.t("开机自启", "Startup"), color = GpuColors.Dim, fontSize = 10.5.sp)
                 Surface(
                     onClick = onToggleStartup,
                     shape = RoundedCornerShape(5.dp),
@@ -1108,7 +1132,7 @@ private fun KpiGrid(
                     ),
                 ) {
                     Text(
-                        text = if (data.startupEnabled) "已开启" else "未开启",
+                        text = if (data.startupEnabled) s.t("已开启", "On") else s.t("未开启", "Off"),
                         color = if (data.startupEnabled) GpuColors.EmeraldLight else GpuColors.Dim,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -1126,7 +1150,7 @@ private fun KpiGrid(
             val memPctVal = latestMem?.commitPct
             val memPct = ((memPctVal?.toFloat() ?: 0f) / 100f).coerceIn(0f, 1f)
             val utilPct = ((latestGpu?.util?.toFloatOrNull() ?: 0f) / 100f).coerceIn(0f, 1f)
-            val proc = data.procSummary.ifEmpty { "—" }
+            val proc = s.trBackend(data.procSummary.ifEmpty { "—" })
             val running = proc != "—" && !proc.contains("未运行")
 
             Row(
@@ -1138,7 +1162,7 @@ private fun KpiGrid(
                 // 1) 显卡温度 / 功耗（超紧凑 2 行 + 进度条）
                 CompactWideKpiCard(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
-                    title = "显卡温度 / 功耗",
+                    title = s.t("显卡温度 / 功耗", "GPU Temp / Power"),
                     rightTitle = buildString {
                         val dv = latestGpu?.hotspotDeltaVal
                         if (dv != null) append("Δ${latestGpu.hotspotDeltaText}°C  ")
@@ -1161,7 +1185,7 @@ private fun KpiGrid(
                         )
                         if (!latestGpu?.hotspot.isNullOrEmpty()) {
                             Text(
-                                text = "热点 ${latestGpu!!.hotspot}°",
+                                text = s.t("热点 ${latestGpu!!.hotspot}°", "HS ${latestGpu!!.hotspot}°"),
                                 color = GpuColors.Rose,
                                 fontSize = 10.5.sp,
                                 fontFamily = FontFamily.Monospace,
@@ -1174,7 +1198,7 @@ private fun KpiGrid(
                 // 2) 核心频率 / 链路（超紧凑 2 行 + 进度条）
                 CompactWideKpiCard(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
-                    title = "核心频率 / 链路",
+                    title = s.t("核心频率 / 链路", "Core Clock / Link"),
                     rightTitle = latestGpu?.pcie ?: "",
                     rightTitleColor = GpuColors.Accent,
                     progress = utilPct,
@@ -1206,7 +1230,7 @@ private fun KpiGrid(
                 // 3) 系统内存提交（超紧凑 2 行 + 进度条）
                 CompactWideKpiCard(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
-                    title = "系统内存提交",
+                    title = s.t("系统内存提交", "System Memory"),
                     rightTitle = memPctVal?.let { String.format(Locale.US, "%.0f%%", it) } ?: "",
                     rightTitleColor = if ((memPctVal ?: 0.0) >= 90.0) GpuColors.BadLight else GpuColors.EmeraldLight,
                     progress = memPct,
@@ -1238,7 +1262,7 @@ private fun KpiGrid(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text(text = "目标游戏进程", color = GpuColors.Dim, fontSize = 10.5.sp)
+                            Text(text = s.t("目标游戏进程", "Game Process"), color = GpuColors.Dim, fontSize = 10.5.sp)
                             Surface(
                                 onClick = onToggleStartup,
                                 shape = RoundedCornerShape(5.dp),
@@ -1249,7 +1273,7 @@ private fun KpiGrid(
                                 ),
                             ) {
                                 Text(
-                                    text = if (data.startupEnabled) "自启:开" else "自启:关",
+                                    text = if (data.startupEnabled) s.t("自启:开", "Boot:On") else s.t("自启:关", "Boot:Off"),
                                     color = if (data.startupEnabled) GpuColors.EmeraldLight else GpuColors.Dim,
                                     fontSize = 9.5.sp,
                                     fontWeight = FontWeight.SemiBold,
@@ -1345,8 +1369,9 @@ internal fun CpuMonitorTab(
     onCopySummary: () -> Unit = {},
     onSaveSession: () -> Unit = {},
 ) {
+    val s = LocalStrings.current
     if (cpu == null) {
-        EmptyPlaceholder("请点击「实时监测」开始采集 CPU 数据")
+        EmptyPlaceholder(s.t("请点击「实时监测」开始采集 CPU 数据", "Tap 'Live Mon' to start CPU monitoring"))
         return
     }
 
@@ -1376,14 +1401,14 @@ internal fun CpuMonitorTab(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        text = if (liveRunning) "实时监测中（纯内存缓冲）" else "已停止监测（保留本次快照）",
+                        text = if (liveRunning) s.t("实时监测中（纯内存缓冲）", "Live Monitoring (In-Memory)") else s.t("已停止监测（保留本次快照）", "Stopped (Snapshot Retained)"),
                         color = GpuColors.Dim,
                         fontSize = 11.5.sp,
                         modifier = Modifier.weight(1f),
                     )
                     SmallActionChip(
                         icon = Icons.Rounded.ContentCopy,
-                        label = "复制摘要",
+                        label = s.t("复制摘要", "Copy Summary"),
                         fg = GpuColors.Accent,
                         bg = GpuColors.AccentBg,
                         border = GpuColors.AccentBorder,
@@ -1392,7 +1417,7 @@ internal fun CpuMonitorTab(
                     if (!liveRunning) {
                         SmallActionChip(
                             icon = Icons.Rounded.Save,
-                            label = "补存会话",
+                            label = s.t("补存会话", "Save Session"),
                             fg = GpuColors.EmeraldLight,
                             bg = GpuColors.EmeraldBg,
                             border = GpuColors.EmeraldBorder,
@@ -1438,13 +1463,13 @@ internal fun CpuMonitorTab(
                                     else -> accent
                                 }
                                 Text(
-                                    text = "温度 $tStr · ${cpu.physicalCores}核${cpu.logicalCores}框",
+                                    text = s.t("温度 $tStr · ${cpu.physicalCores}核${cpu.logicalCores}框", "Temp $tStr · ${cpu.physicalCores}C/${cpu.logicalCores}T"),
                                     color = tCol,
                                     fontSize = 11.5.sp,
                                     fontFamily = FontFamily.Monospace,
                                 )
                                 Text(
-                                    text = "均频 ${cpu.avgFreqMhz} MHz · 峰值 ${cpu.maxFreqMhz} MHz",
+                                    text = s.t("均频 ${cpu.avgFreqMhz} MHz · 峰值 ${cpu.maxFreqMhz} MHz", "Avg ${cpu.avgFreqMhz} MHz · Max ${cpu.maxFreqMhz} MHz"),
                                     color = GpuColors.Dim,
                                     fontSize = 11.sp,
                                     fontFamily = FontFamily.Monospace,
@@ -1476,7 +1501,7 @@ internal fun CpuMonitorTab(
                             )
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
-                                    text = "P 性能核 ×${cpu.pCount}",
+                                    text = s.t("P 性能核 ×${cpu.pCount}", "P-Core ×${cpu.pCount}"),
                                     color = pColor,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1514,7 +1539,7 @@ internal fun CpuMonitorTab(
                             )
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
-                                    text = "E 能效核 ×${cpu.eCount}",
+                                    text = s.t("E 能效核 ×${cpu.eCount}", "E-Core ×${cpu.eCount}"),
                                     color = eColor,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1575,7 +1600,7 @@ internal fun CpuMonitorTab(
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Text(
-                                    text = "CPU 60 秒实时趋势与异常点",
+                                    text = s.t("CPU 60 秒实时趋势与异常点", "CPU 60s Live Trend & Alerts"),
                                     color = Color.White,
                                     fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1638,7 +1663,7 @@ internal fun CpuMonitorTab(
                                 }
                             }
                             Text(
-                                text = "蓝线：CPU 占用 % · 橙线：CPU 温度 °C · 红点：异常/降频时刻",
+                                text = s.t("蓝线：CPU 占用 % · 橙线：CPU 温度 °C · 红点：异常/降频时刻", "Blue: CPU % · Orange: Temp °C · Red: Alert/Throttle"),
                                 color = GpuColors.Dim,
                                 fontSize = 10.sp,
                             )
@@ -1661,7 +1686,7 @@ internal fun CpuMonitorTab(
                                     verticalArrangement = Arrangement.spacedBy(4.dp),
                                     modifier = Modifier.padding(12.dp),
                                 ) {
-                                    Text("Top 5 CPU 占用进程", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text(s.t("Top 5 CPU 占用进程", "Top 5 CPU Processes"), color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     cpu.topCpuProcs.forEach { p ->
                                         Row(modifier = Modifier.fillMaxWidth()) {
                                             Text(
@@ -1695,7 +1720,7 @@ internal fun CpuMonitorTab(
                                     verticalArrangement = Arrangement.spacedBy(4.dp),
                                     modifier = Modifier.padding(12.dp),
                                 ) {
-                                    Text("Top 5 内存占用进程", color = eColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text(s.t("Top 5 内存占用进程", "Top 5 Memory Processes"), color = eColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     cpu.topMemProcs.forEach { p ->
                                         Row(modifier = Modifier.fillMaxWidth()) {
                                             Text(
@@ -1730,7 +1755,8 @@ internal fun CpuMonitorTab(
                     border = BorderStroke(1.dp, GpuColors.Border),
                 ) {
                     Text(
-                        text = if (coresExpanded) "▼ 收起逐核环形负载（${cpu.cores.size} 核）" else "▶ 展开逐核环形负载（${cpu.cores.size} 核）",
+                        text = if (coresExpanded) s.t("▼ 收起逐核环形负载（${cpu.cores.size} 核）", "▼ Hide Per-Core Ring Load (${cpu.cores.size}T)")
+                        else s.t("▶ 展开逐核环形负载（${cpu.cores.size} 核）", "▶ Show Per-Core Ring Load (${cpu.cores.size}T)"),
                         color = GpuColors.Text,
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Medium,
@@ -1878,6 +1904,7 @@ private fun SessionToolbar(
     onExport: () -> Unit,
     onRequestDelete: () -> Unit,
 ) {
+    val s = LocalStrings.current
     var expanded by remember { mutableStateOf(false) }
     val sessions = uiState.monitorState.sessions
 
@@ -1895,8 +1922,8 @@ private fun SessionToolbar(
                 ) {
                     Text(
                         text = when (uiState.selectedSession) {
-                            "" -> "选择会话"
-                            "__live__" -> "实时监测(仅内存)"
+                            "" -> s.t("选择会话", "Session")
+                            "__live__" -> s.t("实时监测(仅内存)", "Live (Memory)")
                             else -> uiState.selectedSession
                         },
                         color = GpuColors.Text,
@@ -1917,19 +1944,19 @@ private fun SessionToolbar(
                 onDismissRequest = { expanded = false },
                 containerColor = GpuColors.Card,
             ) {
-                sessions.forEach { s ->
+                sessions.forEach { sItem ->
                     DropdownMenuItem(
                         text = {
                             Text(
-                                text = "${if (s.active) "[运行] " else ""}${if (s.name == "__live__") "实时监测(仅内存)" else s.name} (${s.sizeLabel})",
-                                color = if (s.name == uiState.selectedSession) GpuColors.Accent else GpuColors.Text,
+                                text = "${if (sItem.active) s.t("[运行] ", "[Active] ") else ""}${if (sItem.name == "__live__") s.t("实时监测(仅内存)", "Live (Memory)") else sItem.name} (${sItem.sizeLabel})",
+                                color = if (sItem.name == uiState.selectedSession) GpuColors.Accent else GpuColors.Text,
                                 fontSize = 12.5.sp,
                                 fontFamily = FontFamily.Monospace,
                             )
                         },
                         onClick = {
                             expanded = false
-                            onSelectSession(s.name)
+                            onSelectSession(sItem.name)
                         },
                     )
                 }
@@ -1938,7 +1965,7 @@ private fun SessionToolbar(
 
         SmallActionChip(
             icon = if (uiState.paused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
-            label = if (uiState.paused) "继续" else "暂停",
+            label = if (uiState.paused) s.resumeUi else s.pauseUi,
             fg = if (uiState.paused) GpuColors.WarnLight else GpuColors.Text,
             bg = if (uiState.paused) GpuColors.WarnBg else GpuColors.Card,
             border = if (uiState.paused) GpuColors.WarnBorder else GpuColors.Border,
@@ -1947,7 +1974,7 @@ private fun SessionToolbar(
 
         SmallActionChip(
             icon = Icons.Rounded.WarningAmber,
-            label = "异常",
+            label = s.t("异常", "Alerts"),
             fg = if (uiState.onlyBad) GpuColors.BadLight else GpuColors.Text,
             bg = if (uiState.onlyBad) GpuColors.BadBg else GpuColors.Card,
             border = if (uiState.onlyBad) GpuColors.BadBorder else GpuColors.Border,
@@ -1957,7 +1984,7 @@ private fun SessionToolbar(
         if (!uiState.fullHistory) {
             SmallActionChip(
                 icon = Icons.Rounded.Refresh,
-                label = "全部",
+                label = s.t("全部", "All"),
                 fg = GpuColors.Text,
                 bg = GpuColors.Card,
                 border = GpuColors.Border,
@@ -2008,7 +2035,7 @@ private fun SessionToolbar(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        text = "会话管理",
+                        text = s.t("会话管理", "Sessions"),
                         color = GpuColors.Dim,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
@@ -2054,8 +2081,8 @@ private fun SessionToolbar(
                         ) {
                             Text(
                                 text = when (uiState.selectedSession) {
-                                    "" -> "选择会话"
-                                    "__live__" -> "实时监测(仅内存)"
+                                    "" -> s.t("选择会话", "Session")
+                                    "__live__" -> s.t("实时监测(仅内存)", "Live (Memory)")
                                     else -> uiState.selectedSession
                                 },
                                 color = Color.White,
@@ -2077,19 +2104,19 @@ private fun SessionToolbar(
                         onDismissRequest = { expanded = false },
                         containerColor = GpuColors.Card,
                     ) {
-                        sessions.forEach { s ->
+                        sessions.forEach { sItem ->
                             DropdownMenuItem(
                                 text = {
                                     Text(
-                                        text = "${if (s.active) "[运行] " else ""}${if (s.name == "__live__") "实时监测(仅内存)" else s.name} (${s.sizeLabel})",
-                                        color = if (s.name == uiState.selectedSession) GpuColors.Accent else GpuColors.Text,
+                                        text = "${if (sItem.active) s.t("[运行] ", "[Active] ") else ""}${if (sItem.name == "__live__") s.t("实时监测(仅内存)", "Live (Memory)") else sItem.name} (${sItem.sizeLabel})",
+                                        color = if (sItem.name == uiState.selectedSession) GpuColors.Accent else GpuColors.Text,
                                         fontSize = 12.5.sp,
                                         fontFamily = FontFamily.Monospace,
                                     )
                                 },
                                 onClick = {
                                     expanded = false
-                                    onSelectSession(s.name)
+                                    onSelectSession(sItem.name)
                                 },
                             )
                         }
@@ -2102,7 +2129,7 @@ private fun SessionToolbar(
                 ) {
                     SmallActionChip(
                         icon = if (uiState.paused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
-                        label = if (uiState.paused) "继续" else "暂停",
+                        label = if (uiState.paused) s.resumeUi else s.pauseUi,
                         fg = if (uiState.paused) GpuColors.WarnLight else GpuColors.Text,
                         bg = if (uiState.paused) GpuColors.WarnBg else GpuColors.InputBg,
                         border = if (uiState.paused) GpuColors.WarnBorder else GpuColors.Border,
@@ -2111,7 +2138,7 @@ private fun SessionToolbar(
                     )
                     SmallActionChip(
                         icon = Icons.Rounded.WarningAmber,
-                        label = "异常",
+                        label = s.t("异常", "Alerts"),
                         fg = if (uiState.onlyBad) GpuColors.BadLight else GpuColors.Text,
                         bg = if (uiState.onlyBad) GpuColors.BadBg else GpuColors.InputBg,
                         border = if (uiState.onlyBad) GpuColors.BadBorder else GpuColors.Border,
@@ -2121,7 +2148,7 @@ private fun SessionToolbar(
                     if (!uiState.fullHistory) {
                         SmallActionChip(
                             icon = Icons.Rounded.Refresh,
-                            label = "全部",
+                            label = s.t("全部", "All"),
                             fg = GpuColors.Text,
                             bg = GpuColors.InputBg,
                             border = GpuColors.Border,
@@ -2277,7 +2304,7 @@ internal fun MonitorTabBar(
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
                 ) {
                     Text(
-                        text = tab.label,
+                        text = LocalStrings.current.tabLabel(tab),
                         color = if (selected) Color.White else GpuColors.Dim,
                         fontSize = 11.5.sp,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
@@ -2315,11 +2342,12 @@ internal fun LogDetailDialog(
             }
         },
         text = {
+            val s = LocalStrings.current
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text("来源：${entry.source}", color = GpuColors.Accent, fontSize = 12.sp)
+                Text(s.t("来源：${entry.source}", "Source: ${entry.source}"), color = GpuColors.Accent, fontSize = 12.sp)
                 Surface(
                     color = GpuColors.InputBg,
                     shape = RoundedCornerShape(10.dp),
@@ -2336,17 +2364,18 @@ internal fun LogDetailDialog(
             }
         },
         confirmButton = {
+            val s = LocalStrings.current
             Button(
                 onClick = {
                     clipboard.setText(AnnotatedString(entry.raw.ifEmpty { entry.message }))
-                    onToast("已复制完整日志")
+                    onToast(s.t("已复制完整日志", "Full log entry copied"))
                     onDismiss()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = GpuColors.Accent, contentColor = GpuColors.AccentDark),
-            ) { Text("复制内容", fontWeight = FontWeight.Bold) }
+            ) { Text(s.t("复制内容", "Copy"), fontWeight = FontWeight.Bold) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("关闭", color = GpuColors.Dim) }
+            TextButton(onClick = onDismiss) { Text(LocalStrings.current.closeBtn, color = GpuColors.Dim) }
         },
     )
 }
@@ -2358,39 +2387,40 @@ internal fun TrendTab(
     windowSize: Int,
     onChangeWindow: (Int) -> Unit,
 ) {
+    val s = LocalStrings.current
     val slicedGpu = remember(gpuRows, windowSize) { gpuRows.takeLast(windowSize) }
     val slicedMem = remember(memPoints, windowSize) { memPoints.takeLast(windowSize.coerceAtMost(30)) }
 
-    val specs = remember(slicedGpu, slicedMem) {
+    val specs = remember(slicedGpu, slicedMem, s.isZh) {
         fun mapGpu(pick: (GpuRowDto) -> Double?): List<TrendPoint> =
             slicedGpu.mapNotNull { r -> pick(r)?.let { TrendPoint(r.ts, it) } }
 
         listOf(
-            TrendMetricSpec("GPU 温度", "°C", 1, GpuColors.Rose, mapGpu { it.temp.toDoubleOrNull() }),
-            TrendMetricSpec("GPU 热点温度", "°C", 1, GpuColors.Crimson, mapGpu { it.hotspot.toDoubleOrNull() }),
-            TrendMetricSpec("热点温差 (热点-GPU)", "°C", 1, GpuColors.Orange, mapGpu { it.hotspotDeltaVal }),
-            TrendMetricSpec("功耗", "W", 1, GpuColors.Warn, mapGpu { it.power.toDoubleOrNull() }),
-            TrendMetricSpec("核心频率", "MHz", 0, GpuColors.Accent, mapGpu { it.core.toDoubleOrNull() }),
-            TrendMetricSpec("显存频率", "MHz", 0, GpuColors.Violet, mapGpu { it.memclk.toDoubleOrNull() }),
-            TrendMetricSpec("GPU 占用", "%", 0, GpuColors.Emerald, mapGpu { it.util.toDoubleOrNull() }),
-            TrendMetricSpec("显存占用", "MB", 0, GpuColors.Teal, mapGpu { it.vram.toDoubleOrNull() }),
-            TrendMetricSpec("风扇转速", "%", 0, GpuColors.Pink, mapGpu { it.fan.toDoubleOrNull() }),
+            TrendMetricSpec(s.t("GPU 温度", "GPU Temp"), "°C", 1, GpuColors.Rose, mapGpu { it.temp.toDoubleOrNull() }),
+            TrendMetricSpec(s.t("GPU 热点温度", "GPU Hotspot"), "°C", 1, GpuColors.Crimson, mapGpu { it.hotspot.toDoubleOrNull() }),
+            TrendMetricSpec(s.t("热点温差 (热点-GPU)", "Hotspot Delta"), "°C", 1, GpuColors.Orange, mapGpu { it.hotspotDeltaVal }),
+            TrendMetricSpec(s.t("功耗", "Power"), "W", 1, GpuColors.Warn, mapGpu { it.power.toDoubleOrNull() }),
+            TrendMetricSpec(s.t("核心频率", "Core Clock"), "MHz", 0, GpuColors.Accent, mapGpu { it.core.toDoubleOrNull() }),
+            TrendMetricSpec(s.t("显存频率", "Mem Clock"), "MHz", 0, GpuColors.Violet, mapGpu { it.memclk.toDoubleOrNull() }),
+            TrendMetricSpec(s.t("GPU 占用", "GPU Util"), "%", 0, GpuColors.Emerald, mapGpu { it.util.toDoubleOrNull() }),
+            TrendMetricSpec(s.t("显存占用", "VRAM Used"), "MB", 0, GpuColors.Teal, mapGpu { it.vram.toDoubleOrNull() }),
+            TrendMetricSpec(s.t("风扇转速", "Fan Speed"), "%", 0, GpuColors.Pink, mapGpu { it.fan.toDoubleOrNull() }),
             TrendMetricSpec(
-                "PCIe 代数",
+                s.t("PCIe 代数", "PCIe Gen"),
                 "Gen",
                 0,
                 GpuColors.BadLight,
                 mapGpu { Regex("^Gen(\\d+)").find(it.pcie)?.groupValues?.getOrNull(1)?.toDoubleOrNull() },
             ),
             TrendMetricSpec(
-                "系统内存提交率",
+                s.t("系统内存提交率", "Commit Charge"),
                 "%",
                 1,
                 GpuColors.EmeraldLight,
                 slicedMem.map { TrendPoint(it.ts, it.commitPct) },
             ),
             TrendMetricSpec(
-                "非分页内核池",
+                s.t("非分页内核池", "Non-Paged Pool"),
                 "MB",
                 0,
                 GpuColors.WarnLight,
@@ -2401,7 +2431,7 @@ internal fun TrendTab(
 
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("时间窗口：", color = GpuColors.Dim, fontSize = 12.sp)
+            Text(s.t("时间窗口：", "Window:"), color = GpuColors.Dim, fontSize = 12.sp)
             listOf(15, 20, 30, 60).forEach { n ->
                 val sel = windowSize == n
                 Surface(
@@ -2411,7 +2441,7 @@ internal fun TrendTab(
                     border = BorderStroke(1.dp, if (sel) GpuColors.AccentBorder else GpuColors.Border),
                 ) {
                     Text(
-                        text = "${n}点",
+                        text = s.t("${n}点", "${n} pts"),
                         color = if (sel) GpuColors.Accent else GpuColors.Dim,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -2467,7 +2497,13 @@ internal fun LogListTab(
             value = filter,
             onValueChange = onFilterChange,
             singleLine = true,
-            placeholder = { Text("输入关键字过滤（如 4101 / nvlddmkm）", color = GpuColors.Dim, fontSize = 12.sp) },
+            placeholder = {
+                Text(
+                    LocalStrings.current.t("输入关键字过滤（如 4101 / nvlddmkm）", "Filter by keyword (e.g. 4101 / nvlddmkm)"),
+                    color = GpuColors.Dim,
+                    fontSize = 12.sp,
+                )
+            },
             shape = RoundedCornerShape(10.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = GpuColors.Accent,
@@ -2506,6 +2542,7 @@ internal fun AlertsAndIncidentsTab(
     vm: MainViewModel,
     onClickLog: (LogEntryDto) -> Unit,
 ) {
+    val s = LocalStrings.current
     val alerts = uiState.monitorState.alerts.asReversed()
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -2513,7 +2550,7 @@ internal fun AlertsAndIncidentsTab(
     ) {
         item {
             Text(
-                text = "触发告警 (${alerts.size})",
+                text = s.t("触发告警 (${alerts.size})", "Triggered Alerts (${alerts.size})"),
                 color = Color.White,
                 fontSize = 13.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -2521,7 +2558,7 @@ internal fun AlertsAndIncidentsTab(
         }
         if (alerts.isEmpty()) {
             item {
-                Text("暂无告警记录", color = GpuColors.Dim, fontSize = 12.sp)
+                Text(s.t("暂无告警记录", "No alert records"), color = GpuColors.Dim, fontSize = 12.sp)
             }
         } else {
             items(alerts.take(80)) { a ->
@@ -2532,7 +2569,7 @@ internal fun AlertsAndIncidentsTab(
         item {
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "事故取证包 (${uiState.incidents.size})",
+                text = s.t("事故取证包 (${uiState.incidents.size})", "Incident Bundles (${uiState.incidents.size})"),
                 color = Color.White,
                 fontSize = 13.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -2540,7 +2577,7 @@ internal fun AlertsAndIncidentsTab(
         }
         if (uiState.incidents.isEmpty()) {
             item {
-                Text("暂无事故取证记录", color = GpuColors.Dim, fontSize = 12.sp)
+                Text(s.t("暂无事故取证记录", "No incident records"), color = GpuColors.Dim, fontSize = 12.sp)
             }
         } else {
             items(uiState.incidents) { inc ->
@@ -2557,7 +2594,7 @@ internal fun AlertsAndIncidentsTab(
                         modifier = Modifier.padding(10.dp),
                     ) {
                         Text(
-                            text = "${if (inc.belongsToSession) "[本次] " else ""}${inc.name}",
+                            text = "${if (inc.belongsToSession) s.t("[本次] ", "[Cur] ") else ""}${inc.name}",
                             color = Color.White,
                             fontSize = 12.sp,
                             fontFamily = FontFamily.Monospace,
@@ -2603,7 +2640,7 @@ internal fun AlertsAndIncidentsTab(
                     modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 260.dp),
                 ) {
                     Text(
-                        text = uiState.previewText.ifEmpty { "(暂无预览内容)" },
+                        text = uiState.previewText.ifEmpty { s.t("(暂无预览内容)", "(No preview)") },
                         color = GpuColors.Text,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
@@ -2666,10 +2703,13 @@ private fun LogEntryCard(entry: LogEntryDto, onClick: () -> Unit) {
 private fun RemoteSettingsDialog(
     cfg: ServerConfigDto,
     gpus: List<GpuDeviceDto>,
+    appLang: AppLang,
+    onChangeAppLang: (AppLang) -> Unit,
     onUpdate: (ServerConfigDto) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
 ) {
+    val s = LocalStrings.current
     var gamesText by remember(cfg) { mutableStateOf(cfg.gameNames.joinToString(", ")) }
     var tempWarn by remember(cfg) { mutableStateOf(cfg.tempWarn.toString()) }
     var hsWarn by remember(cfg) { mutableStateOf(cfg.hotspotWarn.toString()) }
@@ -2686,46 +2726,75 @@ private fun RemoteSettingsDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = GpuColors.Card,
-        title = { Text("电脑端采集与界面设置", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+        title = { Text(s.t("电脑端采集与界面设置", "Host & App Settings"), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (gpus.isNotEmpty()) {
-                    Text(
-                        text = "当前显卡：#${cfg.gpuIndex} ${gpus.find { it.index == cfg.gpuIndex }?.name ?: ""}",
-                        color = GpuColors.Accent,
-                        fontSize = 12.sp,
-                    )
-                }
-                SettingField("监控游戏进程（逗号分隔）", gamesText) { gamesText = it }
-                SettingField("温度告警阈值 (°C)", tempWarn) { tempWarn = it }
-                SettingField("热点告警阈值 (°C)", hsWarn) { hsWarn = it }
-                SettingField("温差告警阈值 (°C)", deltaWarn) { deltaWarn = it }
-                SettingField("功耗告警阈值 (W)", powerWarn) { powerWarn = it }
-                SettingField("CPU 温度告警阈值 (°C)", cpuTempWarn) { cpuTempWarn = it }
-                SettingField("CPU 占用告警阈值 (%)", cpuUsageWarn) { cpuUsageWarn = it }
-                SettingField("显存占用告警阈值 (%)", vramWarnPct) { vramWarnPct = it }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("开启 PCIe 掉速预警", color = GpuColors.Text, fontSize = 12.sp)
+                    Text(s.t("界面语言", "Language"), color = GpuColors.Text, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(AppLang.EN to "English", AppLang.ZH_CN to "简体中文").forEach { (l, label) ->
+                            val active = appLang == l
+                            Surface(
+                                onClick = { onChangeAppLang(l) },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (active) GpuColors.AccentBg else GpuColors.InputBg,
+                                border = BorderStroke(1.dp, if (active) GpuColors.Accent else GpuColors.Border),
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (active) GpuColors.Accent else GpuColors.Dim,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+                if (gpus.isNotEmpty()) {
+                    Text(
+                        text = s.t(
+                            "当前显卡：#${cfg.gpuIndex} ${gpus.find { it.index == cfg.gpuIndex }?.name ?: ""}",
+                            "Active GPU: #${cfg.gpuIndex} ${gpus.find { it.index == cfg.gpuIndex }?.name ?: ""}",
+                        ),
+                        color = GpuColors.Accent,
+                        fontSize = 12.sp,
+                    )
+                }
+                SettingField(s.t("监控游戏进程（逗号分隔）", "Watched Processes (comma-separated)"), gamesText) { gamesText = it }
+                SettingField(s.t("温度告警阈值 (°C)", "GPU Temp Warn (°C)"), tempWarn) { tempWarn = it }
+                SettingField(s.t("热点告警阈值 (°C)", "Hotspot Warn (°C)"), hsWarn) { hsWarn = it }
+                SettingField(s.t("温差告警阈值 (°C)", "Delta Warn (°C)"), deltaWarn) { deltaWarn = it }
+                SettingField(s.t("功耗告警阈值 (W)", "Power Warn (W)"), powerWarn) { powerWarn = it }
+                SettingField(s.t("CPU 温度告警阈值 (°C)", "CPU Temp Warn (°C)"), cpuTempWarn) { cpuTempWarn = it }
+                SettingField(s.t("CPU 占用告警阈值 (%)", "CPU Usage Warn (%)"), cpuUsageWarn) { cpuUsageWarn = it }
+                SettingField(s.t("显存占用告警阈值 (%)", "VRAM Usage Warn (%)"), vramWarnPct) { vramWarnPct = it }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(s.t("开启 PCIe 掉速预警", "PCIe Drop Alert"), color = GpuColors.Text, fontSize = 12.sp)
                     androidx.compose.material3.Switch(
                         checked = pcieDropWarn,
                         onCheckedChange = { pcieDropWarn = it },
                     )
                 }
-                SettingField("网页服务端口", webPort) { webPort = it }
-                SettingField("远程访问口令（留空不限制）", authPin) { authPin = it }
+                SettingField(s.t("网页服务端口", "Web Port"), webPort) { webPort = it }
+                SettingField(s.t("远程访问口令（留空不限制）", "Remote PIN (blank = off)"), authPin) { authPin = it }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("远程只读访客模式", color = GpuColors.Text, fontSize = 12.sp)
+                    Text(s.t("远程只读访客模式", "Read-Only Remote Mode"), color = GpuColors.Text, fontSize = 12.sp)
                     androidx.compose.material3.Switch(
                         checked = readOnlyRemote,
                         onCheckedChange = { readOnlyRemote = it },
@@ -2754,10 +2823,10 @@ private fun RemoteSettingsDialog(
                     onSave()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = GpuColors.Emerald, contentColor = GpuColors.EmeraldText),
-            ) { Text("保存设置", fontWeight = FontWeight.Bold) }
+            ) { Text(s.t("保存设置", "Save Settings"), fontWeight = FontWeight.Bold) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消", color = GpuColors.Dim) }
+            TextButton(onClick = onDismiss) { Text(s.cancelBtn, color = GpuColors.Dim) }
         },
     )
 }
@@ -2821,6 +2890,7 @@ private fun BigHudDashboard(
     latestGpu: GpuRowDto?,
     onExit: () -> Unit,
 ) {
+    val s = LocalStrings.current
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
@@ -2833,14 +2903,14 @@ private fun BigHudDashboard(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                text = "远距离副屏大字仪表盘",
+                text = s.t("远距离副屏大字仪表盘", "Distance HUD Dashboard"),
                 color = GpuColors.Dim,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             SmallActionChip(
                 icon = Icons.Rounded.OpenInFull,
-                label = "退出大字",
+                label = s.t("退出大字", "Exit HUD"),
                 fg = GpuColors.Accent,
                 bg = GpuColors.AccentBg,
                 border = GpuColors.AccentBorder,
@@ -2862,7 +2932,7 @@ private fun BigHudDashboard(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.padding(18.dp),
                 ) {
-                    Text("GPU 核心状态", color = GpuColors.Dim, fontSize = 14.sp)
+                    Text(s.t("GPU 核心状态", "GPU Core Status"), color = GpuColors.Dim, fontSize = 14.sp)
                     Text(
                         text = latestGpu?.let { "${it.temp}°C" } ?: "—",
                         color = Color.White,
@@ -2871,20 +2941,29 @@ private fun BigHudDashboard(
                         fontFamily = FontFamily.Monospace,
                     )
                     Text(
-                        text = "热点 ${latestGpu?.hotspot ?: "—"}°C · 功耗 ${latestGpu?.power ?: "—"} W",
+                        text = s.t(
+                            "热点 ${latestGpu?.hotspot ?: "—"}°C · 功耗 ${latestGpu?.power ?: "—"} W",
+                            "Hotspot ${latestGpu?.hotspot ?: "—"}°C · Power ${latestGpu?.power ?: "—"} W",
+                        ),
                         color = GpuColors.WarnLight,
                         fontSize = 18.sp,
                         fontFamily = FontFamily.Monospace,
                     )
                     Text(
-                        text = "核心 ${latestGpu?.core ?: "—"} MHz · 占用 ${latestGpu?.util ?: "—"}% · 降频 ${latestGpu?.thrLabel?.ifBlank { "无" } ?: "无"}",
+                        text = s.t(
+                            "核心 ${latestGpu?.core ?: "—"} MHz · 占用 ${latestGpu?.util ?: "—"}% · 降频 ${latestGpu?.thrLabel?.ifBlank { "无" } ?: "无"}",
+                            "Core ${latestGpu?.core ?: "—"} MHz · Util ${latestGpu?.util ?: "—"}% · Thr ${s.trThr(latestGpu?.thrLabel?.ifBlank { "None" } ?: "None")}",
+                        ),
                         color = GpuColors.Accent,
                         fontSize = 14.sp,
                         fontFamily = FontFamily.Monospace,
                     )
                     data.stats.gpuTemp?.let { st ->
                         Text(
-                            text = "温度极值 ${st.min}~${st.max}°C (均 ${st.avg}°C)",
+                            text = s.t(
+                                "温度极值 ${st.min}~${st.max}°C (均 ${st.avg}°C)",
+                                "Temp Range ${st.min}~${st.max}°C (avg ${st.avg}°C)",
+                            ),
                             color = GpuColors.Dim,
                             fontSize = 13.sp,
                             fontFamily = FontFamily.Monospace,
@@ -2914,7 +2993,7 @@ private fun BigHudDashboard(
                             fontSize = 24.sp,
                         )
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("CPU 实时状态", color = GpuColors.Dim, fontSize = 14.sp)
+                            Text(s.t("CPU 实时状态", "CPU Live Status"), color = GpuColors.Dim, fontSize = 14.sp)
                             Text(
                                 text = cpu.tempC?.let { String.format(Locale.US, "%.1f°C", it) } ?: "—",
                                 color = Color.White,
@@ -2923,7 +3002,10 @@ private fun BigHudDashboard(
                                 fontFamily = FontFamily.Monospace,
                             )
                             Text(
-                                text = "均频 ${cpu.avgFreqMhz} MHz · 峰值 ${cpu.maxFreqMhz} MHz",
+                                text = s.t(
+                                    "均频 ${cpu.avgFreqMhz} MHz · 峰值 ${cpu.maxFreqMhz} MHz",
+                                    "Avg ${cpu.avgFreqMhz} MHz · Max ${cpu.maxFreqMhz} MHz",
+                                ),
                                 color = GpuColors.Text,
                                 fontSize = 15.sp,
                                 fontFamily = FontFamily.Monospace,
@@ -2953,6 +3035,7 @@ private fun exportZipViaDownloadManager(
     context: Context,
     baseUrl: String,
     session: String,
+    strings: AppStrings,
     onToast: (String) -> Unit,
 ) {
     try {
@@ -2961,15 +3044,15 @@ private fun exportZipViaDownloadManager(
         val fileName = "gpucap-$session.zip"
         val req = DownloadManager.Request(Uri.parse(dlUrl))
         req.setTitle(fileName)
-        req.setDescription("GPUCap 会话取证导出")
+        req.setDescription(strings.t("GPUCap 会话取证导出", "GPUCap Session Export"))
         req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
         req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
         val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
         if (dm != null) {
             dm.enqueue(req)
-            onToast("开始下载：$fileName")
+            onToast(strings.t("开始下载：$fileName", "Downloading: $fileName"))
         }
     } catch (e: Exception) {
-        onToast("导出失败：${e.message}")
+        onToast(strings.t("导出失败：${e.message}", "Export failed: ${e.message}"))
     }
 }
