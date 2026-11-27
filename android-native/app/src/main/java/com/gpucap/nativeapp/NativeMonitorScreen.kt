@@ -736,6 +736,7 @@ fun NativeMonitorScreen(
                                             MonitorTab.Gpu -> FullGpuTableContent(
                                                 rows = data.gpuRows,
                                                 onlyBad = uiState.onlyBad,
+                                                stats = data.stats,
                                                 onClickRow = { splitDetailRow = it },
                                             )
                                             MonitorTab.Cpu -> {

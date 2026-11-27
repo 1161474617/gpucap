@@ -1,5 +1,9 @@
 package com.gpucap.nativeapp
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,13 +23,18 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
@@ -34,9 +43,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,9 +55,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 /**
  * 独立的全屏数据明细分页界面：
@@ -68,13 +81,13 @@ fun GpuTableScreen(
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        // 顶部返回与快捷控制栏（紧凑 2 行）
+        // 顶部返回与快捷控制栏（紧凑化，支持实时监测、常亮与异常过滤）
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(GpuColors.TopBar)
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -112,7 +125,26 @@ fun GpuTableScreen(
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = FontFamily.Monospace,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
+                )
+
+                SmallActionChip(
+                    icon = if (data.liveRunning) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
+                    label = if (data.liveRunning) "停止" else "实时",
+                    fg = if (data.liveRunning) GpuColors.BadLight else GpuColors.Accent,
+                    bg = if (data.liveRunning) GpuColors.BadBg else GpuColors.AccentBg,
+                    border = if (data.liveRunning) GpuColors.BadBorder else GpuColors.AccentBorder,
+                    onClick = vm::toggleLiveMonitor,
+                )
+
+                SmallActionChip(
+                    icon = if (uiState.keepScreenOn) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
+                    label = "常亮",
+                    fg = if (uiState.keepScreenOn) GpuColors.EmeraldLight else GpuColors.Dim,
+                    bg = if (uiState.keepScreenOn) GpuColors.EmeraldBg else GpuColors.Card,
+                    border = if (uiState.keepScreenOn) GpuColors.EmeraldBorder else GpuColors.Border,
+                    onClick = vm::toggleKeepScreenOn,
                 )
 
                 SmallActionChip(
@@ -145,25 +177,62 @@ fun GpuTableScreen(
                 }
             }
 
-            // 5 大分页切换栏
+            // 5/6 大分页切换栏
             MonitorTabBar(
                 activeTab = uiState.activeTab,
                 data = data,
                 onSelectTab = vm::setTab,
             )
+
+            // 全屏分页顶部实时告警横幅
+            uiState.liveAlertBanner?.let { banner ->
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = GpuColors.BadBg,
+                    border = BorderStroke(1.dp, GpuColors.BadBorder),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            text = "实时告警：$banner",
+                            color = GpuColors.BadLight,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = "关闭",
+                            color = Color.White,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable(onClick = vm::dismissLiveAlertBanner),
+                        )
+                    }
+                }
+            }
         }
 
-        // 全屏分页内容区
-        Box(
+        // 全屏分页内容区（带平滑切页过渡）
+        AnimatedContent(
+            targetState = uiState.activeTab,
+            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            label = "full_tab_transition",
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-        ) {
-            when (uiState.activeTab) {
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+        ) { tab ->
+            when (tab) {
                 MonitorTab.Gpu -> FullGpuTableContent(
                     rows = data.gpuRows,
                     onlyBad = uiState.onlyBad,
+                    stats = data.stats,
                     onClickRow = { detailRow = it },
                 )
 
@@ -292,6 +361,7 @@ internal fun GpuRowDetailDialog(row: GpuRowDto, onDismiss: () -> Unit) {
 internal fun FullGpuTableContent(
     rows: List<GpuRowDto>,
     onlyBad: Boolean,
+    stats: LiveStatsSummaryDto = LiveStatsSummaryDto(),
     onClickRow: (GpuRowDto) -> Unit,
 ) {
     val list = remember(rows, onlyBad) {
@@ -306,22 +376,29 @@ internal fun FullGpuTableContent(
     }
 
     val hScroll = rememberScrollState()
-    val timeWidth = 80.dp
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val showJumpTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 3 } }
+    val thrCount = remember(list) {
+        list.count { it.thrLabel.isNotBlank() && it.thrLabel != "空闲" }
+    }
+
+    val timeWidth = 76.dp
     val baseCols: List<Pair<String, Dp>> = listOf(
-        "温度" to 56.dp,
-        "热点" to 60.dp,
-        "温差" to 56.dp,
-        "功耗" to 64.dp,
-        "核心" to 62.dp,
-        "显存频" to 64.dp,
-        "PCIe" to 72.dp,
-        "占用" to 52.dp,
-        "显存" to 68.dp,
-        "风扇" to 52.dp,
-        "降频位" to 82.dp,
-        "状态" to 50.dp,
+        "温度" to 54.dp,
+        "热点" to 58.dp,
+        "温差" to 54.dp,
+        "功耗" to 62.dp,
+        "核心" to 60.dp,
+        "显存频" to 62.dp,
+        "PCIe" to 78.dp,
+        "占用" to 50.dp,
+        "显存" to 88.dp,
+        "风扇" to 50.dp,
+        "降频原因" to 96.dp,
+        "状态" to 48.dp,
     )
-    val baseTotal = 738.dp
+    val baseTotal = 760.dp
 
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -335,11 +412,37 @@ internal fun FullGpuTableContent(
             val cols = baseCols.map { (t, w) -> t to (w * scale) }
 
             Column(modifier = Modifier.fillMaxSize()) {
+                // 表格顶部极值与采样统计条
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(GpuColors.InputBg.copy(alpha = 0.7f))
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                ) {
+                    Text(
+                        text = "样本 ${list.size} 条 · 降频 $thrCount 次（点击行查看详情）",
+                        color = GpuColors.Dim,
+                        fontSize = 10.5.sp,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                    stats.gpuTemp?.let { st ->
+                        val pStr = stats.gpuPower?.let { " · 功耗峰 ${it.max}W" } ?: ""
+                        Text(
+                            text = "温度 ${st.min}~${st.max}°C (均${st.avg}°C)$pStr",
+                            color = GpuColors.Accent,
+                            fontSize = 10.5.sp,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
+                }
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(GpuColors.HeadBg)
-                        .padding(vertical = 9.dp),
+                        .padding(vertical = 8.dp),
                 ) {
                     Text(
                         text = "时间",
@@ -365,7 +468,10 @@ internal fun FullGpuTableContent(
 
                 HorizontalDivider(color = GpuColors.Border, thickness = 1.dp)
 
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
                     itemsIndexed(list) { index, r ->
                         val fg = sevTextColor(r.sev)
                         val vals = listOf(
@@ -419,6 +525,37 @@ internal fun FullGpuTableContent(
                         HorizontalDivider(
                             color = GpuColors.Border.copy(alpha = 0.4f),
                             thickness = 0.5.dp,
+                        )
+                    }
+                }
+            }
+
+            if (showJumpTop) {
+                Surface(
+                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                    shape = RoundedCornerShape(99.dp),
+                    color = GpuColors.Accent,
+                    shadowElevation = 4.dp,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(14.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ArrowUpward,
+                            contentDescription = "回到最新",
+                            tint = GpuColors.AccentDark,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Text(
+                            text = "回到最新",
+                            color = GpuColors.AccentDark,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
                         )
                     }
                 }
