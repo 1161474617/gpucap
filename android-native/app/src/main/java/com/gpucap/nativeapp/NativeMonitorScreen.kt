@@ -489,6 +489,28 @@ fun NativeMonitorScreen(
                             }
                         }
 
+                        // 0.5 环境指纹摘要条
+                        data.env?.let { env ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = GpuColors.Card.copy(alpha = 0.85f),
+                                border = BorderStroke(1.dp, GpuColors.Border),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                val drv = env.driverVersion.ifBlank { "—" }
+                                val chg = env.driverChangedFrom?.let { " (变更自 $it)" } ?: ""
+                                Text(
+                                    text = "${env.gpuName} · 驱动 $drv$chg · ${env.pcieMax} · 电源 ${env.powerPlan}",
+                                    color = if (env.driverChangedFrom != null) GpuColors.WarnLight else GpuColors.Dim,
+                                    fontSize = 10.5.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                )
+                            }
+                        }
+
                         // 1. 若开启大字模式则全屏展示远距离副屏仪表盘
                         if (uiState.bigHudMode) {
                             BigHudDashboard(
@@ -975,8 +997,8 @@ private fun KpiGrid(
                     maxLines = 1,
                 )
                 Text(
-                    text = latestGpu?.pcie ?: "",
-                    color = GpuColors.Accent,
+                    text = if (latestGpu?.pcieDrop == true) "${latestGpu.pcie} 降速" else (latestGpu?.pcie ?: ""),
+                    color = if (latestGpu?.pcieDrop == true) GpuColors.BadLight else GpuColors.Accent,
                     fontSize = 10.5.sp,
                     fontFamily = FontFamily.Monospace,
                     maxLines = 1,
@@ -984,7 +1006,12 @@ private fun KpiGrid(
             }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "占用 ${latestGpu?.util ?: "—"}% · 显存 ${latestGpu?.vram ?: "—"} MB",
+                text = buildString {
+                    append("占用 ${latestGpu?.util ?: "—"}% · 显存 ${latestGpu?.vram ?: "—"}MB")
+                    if ((latestGpu?.vramPct ?: 0.0) > 0.0) {
+                        append(" (${latestGpu!!.vramPct.toInt()}%)")
+                    }
+                },
                 color = GpuColors.Dim,
                 fontSize = 10.5.sp,
                 fontFamily = FontFamily.Monospace,
@@ -2649,6 +2676,8 @@ private fun RemoteSettingsDialog(
     var powerWarn by remember(cfg) { mutableStateOf(cfg.powerWarn.toString()) }
     var cpuTempWarn by remember(cfg) { mutableStateOf(cfg.cpuTempWarn.toString()) }
     var cpuUsageWarn by remember(cfg) { mutableStateOf(cfg.cpuUsageWarn.toString()) }
+    var vramWarnPct by remember(cfg) { mutableStateOf(cfg.vramWarnPct.toString()) }
+    var pcieDropWarn by remember(cfg) { mutableStateOf(cfg.pcieDropWarn) }
     var webPort by remember(cfg) { mutableStateOf(cfg.webPort.toString()) }
     var authPin by remember(cfg) { mutableStateOf(cfg.authPin) }
     var readOnlyRemote by remember(cfg) { mutableStateOf(cfg.readOnlyRemote) }
@@ -2676,6 +2705,18 @@ private fun RemoteSettingsDialog(
                 SettingField("功耗告警阈值 (W)", powerWarn) { powerWarn = it }
                 SettingField("CPU 温度告警阈值 (°C)", cpuTempWarn) { cpuTempWarn = it }
                 SettingField("CPU 占用告警阈值 (%)", cpuUsageWarn) { cpuUsageWarn = it }
+                SettingField("显存占用告警阈值 (%)", vramWarnPct) { vramWarnPct = it }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("开启 PCIe 掉速预警", color = GpuColors.Text, fontSize = 12.sp)
+                    androidx.compose.material3.Switch(
+                        checked = pcieDropWarn,
+                        onCheckedChange = { pcieDropWarn = it },
+                    )
+                }
                 SettingField("网页服务端口", webPort) { webPort = it }
                 SettingField("远程访问口令（留空不限制）", authPin) { authPin = it }
                 Row(
@@ -2702,6 +2743,8 @@ private fun RemoteSettingsDialog(
                         powerWarn = powerWarn.toDoubleOrNull() ?: cfg.powerWarn,
                         cpuTempWarn = cpuTempWarn.toDoubleOrNull() ?: cfg.cpuTempWarn,
                         cpuUsageWarn = cpuUsageWarn.toDoubleOrNull() ?: cfg.cpuUsageWarn,
+                        vramWarnPct = vramWarnPct.toDoubleOrNull() ?: cfg.vramWarnPct,
+                        pcieDropWarn = pcieDropWarn,
                         webPort = (webPort.toIntOrNull() ?: cfg.webPort).coerceIn(1024, 65535),
                         authPin = authPin.trim(),
                         readOnlyRemote = readOnlyRemote,

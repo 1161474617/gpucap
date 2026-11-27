@@ -46,6 +46,7 @@ const state = ref({
   cpu: null,
   cpu_points: [],
   stats: {},
+  env: null,
   read_only_remote: false,
   heartbeat: { text: '● 连接中...', level: 'dim' },
   session: '',
@@ -81,6 +82,8 @@ const settingsForm = ref({
   power_warn: 360,
   cpu_temp_warn: 90,
   cpu_usage_warn: 95,
+  vram_warn_pct: 92,
+  pcie_drop_warn: true,
   gpu_interval: 1,
   mem_interval: 5,
   proc_interval: 5,
@@ -692,6 +695,15 @@ onBeforeUnmount(() => {
     </header>
 
     <div class="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-3 p-3 sm:p-4">
+      <div v-if="state.env" class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-[#121824]/80 px-3 py-2 text-xs text-slate-300">
+        <span class="font-mono">
+          {{ state.env.gpu_name }} · 驱动 <strong class="text-sky-300">{{ state.env.driver_version || '—' }}</strong> · VBIOS {{ state.env.vbios || '—' }} · {{ state.env.pcie_max }}
+        </span>
+        <span class="font-mono text-slate-400">
+          {{ state.env.os_version }} · 电源：{{ state.env.power_plan }}
+          <span v-if="state.env.driver_changed_from" class="ml-2 text-amber-400">（驱动变更：{{ state.env.driver_changed_from }} → {{ state.env.driver_version }}）</span>
+        </span>
+      </div>
       <!-- 4 枚现代化实时 KPI 卡片（手机 2x2，桌面 4 列） -->
       <section class="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
         <div class="relative overflow-hidden rounded-xl border border-white/[0.07] bg-[#121824]/90 p-3.5 transition hover:border-white/[0.14]">
@@ -728,10 +740,13 @@ onBeforeUnmount(() => {
           </div>
           <div class="mt-1.5 flex items-baseline gap-2 font-mono">
             <span class="text-lg font-bold text-white sm:text-xl">{{ latestGpu ? `${latestGpu.core} MHz` : '—' }}</span>
-            <span class="text-xs font-medium text-sky-400">{{ latestGpu?.pcie || '' }}</span>
+            <span class="text-xs font-medium" :class="latestGpu?.pcie_drop ? 'text-rose-400 font-bold' : 'text-sky-400'">
+              {{ latestGpu?.pcie || '' }}{{ latestGpu?.pcie_drop ? ' (降速)' : '' }}
+            </span>
           </div>
           <div class="mt-2 truncate font-mono text-[11px] text-slate-400">
-            占用 {{ latestGpu?.util ?? '—' }}% · 显存 {{ latestGpu?.vram ?? '—' }} MB
+            占用 {{ latestGpu?.util ?? '—' }}% · 显存 {{ latestGpu?.vram ?? '—' }}{{ latestGpu?.vram_total ? `/${latestGpu.vram_total}` : '' }} MB
+            <span v-if="latestGpu?.vram_pct > 0" :class="latestGpu.vram_pct >= (settingsForm.vram_warn_pct || 92) ? 'text-rose-400 font-bold' : 'text-sky-300'">({{ latestGpu.vram_pct }}%)</span>
           </div>
         </div>
 
@@ -907,9 +922,9 @@ onBeforeUnmount(() => {
                   <td class="px-2 py-1.5">{{ r.power }}</td>
                   <td class="px-2 py-1.5">{{ r.core }}</td>
                   <td class="px-2 py-1.5">{{ r.memclk }}</td>
-                  <td class="px-2 py-1.5">{{ r.pcie }}</td>
+                  <td class="px-2 py-1.5" :class="r.pcie_drop ? 'text-rose-400 font-bold' : ''">{{ r.pcie }}{{ r.pcie_drop ? ' ⚠' : '' }}</td>
                   <td class="px-2 py-1.5">{{ r.util }}</td>
-                  <td class="px-2 py-1.5">{{ r.vram }}</td>
+                  <td class="px-2 py-1.5">{{ r.vram_pct > 0 ? `${r.vram} (${r.vram_pct}%)` : r.vram }}</td>
                   <td class="px-2 py-1.5">{{ r.fan }}</td>
                   <td class="px-2 py-1.5" :title="r.thr || ''">{{ r.thr_label || r.thr || '—' }}</td>
                   <td class="px-2 py-1.5">{{ r.ok }}</td>
@@ -1227,6 +1242,14 @@ onBeforeUnmount(() => {
           <label class="flex flex-col gap-1">
             <span class="text-slate-400">CPU 占用告警阈值 (%)</span>
             <input type="number" v-model.number="settingsForm.cpu_usage_warn" class="rounded-lg border border-white/[0.1] bg-[#0b0f17] px-2.5 py-2 outline-none focus:border-sky-500" />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-slate-400">显存占用告警阈值 (%)</span>
+            <input type="number" v-model.number="settingsForm.vram_warn_pct" class="rounded-lg border border-white/[0.1] bg-[#0b0f17] px-2.5 py-2 outline-none focus:border-sky-500" />
+          </label>
+          <label class="flex items-center gap-2 sm:col-span-2">
+            <input type="checkbox" v-model="settingsForm.pcie_drop_warn" class="accent-sky-500" />
+            <span class="text-slate-300">开启高负载下 PCIe 带宽降级预警</span>
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-slate-400">GPU 采样间隔 (秒)</span>

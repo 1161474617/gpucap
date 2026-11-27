@@ -13,7 +13,10 @@ use serde::Serialize;
 use crate::collectors::{EventTailer, GpuSampler, MemSampler, ProcSampler, WerWatcher};
 use crate::cpu_probe::{CpuProbe, CpuSnapshot};
 use crate::daemon::request_stop_bg;
-use crate::infra::{decode_throttle_label, load_config, running_pid, sessions_dir};
+use crate::infra::{
+    check_and_update_driver_version, decode_throttle_label, detect_power_plan, load_config,
+    running_pid, sessions_dir, EnvFingerprint,
+};
 
 pub const LIVE_SESSION_NAME: &str = "__live__";
 const MAX_GPU_ROWS: usize = 300;
@@ -34,6 +37,9 @@ pub struct LiveGpuRow {
     pub pcie: String,
     pub util: String,
     pub vram: String,
+    pub vram_total: String,
+    pub vram_pct: f64,
+    pub pcie_drop: bool,
     pub fan: String,
     pub thr: String,
     pub thr_label: String,
@@ -130,6 +136,7 @@ pub struct LiveSnapshot {
     pub alert_count: usize,
     pub cpu: Option<CpuSnapshot>,
     pub stats: LiveStatsSummary,
+    pub env: Option<EnvFingerprint>,
 }
 
 struct LiveBuffer {
@@ -147,6 +154,7 @@ struct LiveBuffer {
     proc_summary: String,
     alert_count: usize,
     cpu: Option<CpuSnapshot>,
+    env: Option<EnvFingerprint>,
 }
 
 impl Default for LiveBuffer {
@@ -166,6 +174,7 @@ impl Default for LiveBuffer {
             proc_summary: "—".to_string(),
             alert_count: 0,
             cpu: None,
+            env: None,
         }
     }
 }
@@ -226,6 +235,7 @@ pub fn snapshot() -> LiveSnapshot {
         alert_count: b.alert_count,
         cpu: b.cpu.clone(),
         stats,
+        env: b.env.clone(),
     }
 }
 
@@ -271,6 +281,7 @@ pub fn start_live() -> Result<(), String> {
         b.proc_summary = "—".to_string();
         b.alert_count = 0;
         b.cpu = None;
+        b.env = None;
     }
 
     let flag = Arc::new(AtomicBool::new(false));
@@ -298,6 +309,39 @@ fn run_live_loop(stop_flag: Arc<AtomicBool>) {
     let mut events = EventTailer::new();
     let mut wer = WerWatcher::new();
 
+    let (gpu_name, driver_version, vram_total_mb, pcie_max, vbios) = gpu.env_info();
+    let os_version = sysinfo::System::long_os_version().unwrap_or_else(|_| "Windows".to_string());
+    let power_plan = detect_power_plan();
+    let driver_changed_from = check_and_update_driver_version(&driver_version);
+    if let Ok(mut b) = manager().buf.lock() {
+        if let Some(ref old_drv) = driver_changed_from {
+            b.alert_count += 1;
+            let msg = format!("检测到显卡驱动版本变更：{} -> {}", old_drv, driver_version);
+            push_bounded(
+                &mut b.alerts,
+                LiveLogItem {
+                    time: Local::now().format("%H:%M:%S").to_string(),
+                    level: "INFO".to_string(),
+                    source: "环境指纹".to_string(),
+                    message: msg.clone(),
+                    raw: msg,
+                    sev: "warn",
+                },
+                MAX_ALERTS,
+            );
+        }
+        b.env = Some(EnvFingerprint {
+            gpu_name,
+            driver_version,
+            vram_total_mb,
+            pcie_max,
+            vbios,
+            os_version,
+            power_plan,
+            driver_changed_from,
+        });
+    }
+
     let watch_re = Regex::new(
         r"(?i)WHEA-Logger|nvlddmkm|Display|Kernel-Power|BugCheck|Kernel-PnP|Disk|amdkmpfd|amdwddmg|LiveKernelEvent",
     )
@@ -313,6 +357,8 @@ fn run_live_loop(stop_flag: Arc<AtomicBool>) {
     let mut next_cfg = Instant::now() + Duration::from_secs(5);
     let mut last_alert_at: Option<Instant> = None;
     let mut last_cpu_alert_at: Option<Instant> = None;
+    let mut last_vram_alert_at: Option<Instant> = None;
+    let mut last_pcie_alert_at: Option<Instant> = None;
 
     while !stop_flag.load(Ordering::SeqCst) {
         let now = Instant::now();
@@ -370,6 +416,9 @@ fn run_live_loop(stop_flag: Arc<AtomicBool>) {
                     let wid = rec.get("pcie.link.width.current").cloned().unwrap_or_default();
                     let util = rec.get("utilization.gpu").cloned().unwrap_or_default();
                     let vram = rec.get("memory.used").cloned().unwrap_or_default();
+                    let vram_total = rec.get("memory.total").cloned().unwrap_or_default();
+                    let gen_max_s = rec.get("pcie.link.gen.max").cloned().unwrap_or_default();
+                    let wid_max_s = rec.get("pcie.link.width.max").cloned().unwrap_or_default();
                     let fan = rec.get("fan.speed").cloned().unwrap_or_default();
                     let thr_raw = rec.get("clocks_throttle_reasons.active").cloned().unwrap_or_default();
 
@@ -391,17 +440,40 @@ fn run_live_loop(stop_flag: Arc<AtomicBool>) {
                     let temp_f = temp.trim().parse::<f64>().ok();
                     let hs_f = hotspot.trim().parse::<f64>().ok();
                     let power_f = power.trim().parse::<f64>().ok();
+                    let util_f = util.trim().parse::<f64>().ok();
                     let gen_i = gen.trim().parse::<i64>().ok();
+                    let wid_i = wid.trim().parse::<i64>().ok();
+                    let gen_max_i = gen_max_s.trim().parse::<i64>().ok();
+                    let wid_max_i = wid_max_s.trim().parse::<i64>().ok();
+                    let vram_used_f = vram.trim().parse::<f64>().ok();
+                    let vram_total_f = vram_total.trim().parse::<f64>().ok();
+                    let vram_pct = match (vram_used_f, vram_total_f) {
+                        (Some(u), Some(t)) if t > 0.0 => ((u / t) * 1000.0).round() / 10.0,
+                        _ => 0.0,
+                    };
                     let delta_f = match (temp_f, hs_f) {
                         (Some(t), Some(h)) => Some(h - t),
                         _ => None,
                     };
 
+                    let high_load = power_f.is_some_and(|w| w >= 120.0) || util_f.is_some_and(|u| u >= 60.0);
+                    let pcie_drop = cfg.pcie_drop_warn
+                        && high_load
+                        && (match (gen_i, gen_max_i) {
+                            (Some(g), Some(gm)) => g > 0 && gm > 0 && g < gm,
+                            _ => false,
+                        } || match (wid_i, wid_max_i) {
+                            (Some(w), Some(wm)) => w > 0 && wm > 0 && w < wm,
+                            _ => false,
+                        });
+                    let vram_warn = vram_pct >= cfg.vram_warn_pct;
+
                     let warn = temp_f.is_some_and(|t| t >= cfg.temp_warn)
                         || hs_f.is_some_and(|h| h >= cfg.hotspot_warn)
                         || delta_f.is_some_and(|d| d >= cfg.hotspot_delta_warn)
                         || power_f.is_some_and(|w| w >= cfg.power_warn)
-                        || (power_f.is_some_and(|w| w > 150.0) && gen_i.is_some_and(|g| g < 4));
+                        || vram_warn
+                        || pcie_drop;
 
                     let thr_active = !thr_short.is_empty() && thr_short != "0x0" && thr_short != "0x1";
                     if warn || thr_active {
@@ -425,9 +497,12 @@ fn run_live_loop(stop_flag: Arc<AtomicBool>) {
                                 power,
                                 core,
                                 memclk,
-                                pcie,
+                                pcie: pcie.clone(),
                                 util,
-                                vram,
+                                vram: vram.clone(),
+                                vram_total: vram_total.clone(),
+                                vram_pct,
+                                pcie_drop,
                                 fan,
                                 thr: thr_short,
                                 thr_label,
@@ -464,6 +539,46 @@ fn run_live_loop(stop_flag: Arc<AtomicBool>) {
                                 MAX_ALERTS,
                             );
                         }
+                        if vram_warn && last_vram_alert_at.is_none_or(|t| t.elapsed() >= Duration::from_secs(30)) {
+                            last_vram_alert_at = Some(now);
+                            b.alert_count += 1;
+                            let msg = format!(
+                                "显存接近满载：已用 {} / {} MB ({:.1}%)",
+                                vram, vram_total, vram_pct
+                            );
+                            push_bounded(
+                                &mut b.alerts,
+                                LiveLogItem {
+                                    time: ts.clone(),
+                                    level: "WARN".to_string(),
+                                    source: "显存专项预警".to_string(),
+                                    message: msg.clone(),
+                                    raw: msg,
+                                    sev: "warn",
+                                },
+                                MAX_ALERTS,
+                            );
+                        }
+                        if pcie_drop && last_pcie_alert_at.is_none_or(|t| t.elapsed() >= Duration::from_secs(30)) {
+                            last_pcie_alert_at = Some(now);
+                            b.alert_count += 1;
+                            let msg = format!(
+                                "高负载下 PCIe 带宽降级：当前 {}（硬件上限 Gen{}x{}）",
+                                pcie, gen_max_s, wid_max_s
+                            );
+                            push_bounded(
+                                &mut b.alerts,
+                                LiveLogItem {
+                                    time: ts.clone(),
+                                    level: "WARN".to_string(),
+                                    source: "PCIe 链路预警".to_string(),
+                                    message: msg.clone(),
+                                    raw: msg,
+                                    sev: "warn",
+                                },
+                                MAX_ALERTS,
+                            );
+                        }
                     }
                 }
                 Err(err) => {
@@ -492,6 +607,9 @@ fn run_live_loop(stop_flag: Arc<AtomicBool>) {
                                 pcie: "—".to_string(),
                                 util: "—".to_string(),
                                 vram: "—".to_string(),
+                                vram_total: String::new(),
+                                vram_pct: 0.0,
+                                pcie_drop: false,
                                 fan: "—".to_string(),
                                 thr: String::new(),
                                 thr_label: String::new(),
@@ -653,6 +771,15 @@ pub fn format_diagnostic_summary(snap: &LiveSnapshot) -> String {
 
     let mut out = String::new();
     out.push_str("# GPUCap 实时监测诊断摘要\n\n");
+    if let Some(ref env) = snap.env {
+        out.push_str("## 系统环境指纹\n");
+        out.push_str(&format!("- 显卡：{} (VBIOS {}, 显存 {} MB, 上限 {})\n", env.gpu_name, env.vbios, env.vram_total_mb, env.pcie_max));
+        out.push_str(&format!("- 驱动版本：{}\n", env.driver_version));
+        if let Some(ref old) = env.driver_changed_from {
+            out.push_str(&format!("- 驱动变更记录：上次 {} -> 本次 {}\n", old, env.driver_version));
+        }
+        out.push_str(&format!("- 操作系统：{} · 电源计划：{}\n\n", env.os_version, env.power_plan));
+    }
     out.push_str(&format!("- 启动时间：{start}\n"));
     out.push_str(&format!(
         "- 监测状态：{}\n",
@@ -776,6 +903,9 @@ mod tests {
                 pcie: "Gen4x16".into(),
                 util: "98".into(),
                 vram: "8192".into(),
+                vram_total: "16384".into(),
+                vram_pct: 50.0,
+                pcie_drop: false,
                 fan: "60".into(),
                 thr: "0x0".into(),
                 thr_label: String::new(),
@@ -799,6 +929,7 @@ mod tests {
             alert_count: 0,
             cpu: None,
             stats: LiveStatsSummary::default(),
+            env: None,
         };
         let md = format_diagnostic_summary(&snap);
         assert!(md.contains("72.0°C"));

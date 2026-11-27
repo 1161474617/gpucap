@@ -396,6 +396,29 @@ impl GpuSampler {
         }
     }
 
+    /// 解析基础显卡静态指纹：(型号, 驱动版本, 总显存MB, 最高PCIe规格, VBIOS)
+    pub fn env_info(&self) -> (String, String, u64, String, String) {
+        let raw = self.static_query();
+        let parts: Vec<&str> = raw.split(',').map(|s| s.trim()).collect();
+        if parts.len() >= 8 {
+            let name = parts[0].to_string();
+            let driver = parts[1].to_string();
+            let vram_mb = parts[2]
+                .split_whitespace()
+                .next()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(0);
+            let pcie_max = if !parts[5].is_empty() && !parts[6].is_empty() {
+                format!("Gen{}x{}", parts[5], parts[6])
+            } else {
+                "—".to_string()
+            };
+            let vbios = parts[7].to_string();
+            return (name, driver, vram_mb, pcie_max, vbios);
+        }
+        ("NVIDIA GPU".to_string(), String::new(), 0, "—".to_string(), String::new())
+    }
+
     /// 通过原生 NVML 直采单次显卡传感器数据
     fn sample_nvml(&self) -> Result<HashMap<String, String>, String> {
         let nvml = self

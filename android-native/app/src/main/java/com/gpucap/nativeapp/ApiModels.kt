@@ -27,6 +27,9 @@ data class GpuRowDto(
     val pcie: String = "",
     val util: String = "",
     val vram: String = "",
+    @SerialName("vram_total") val vramTotal: String = "",
+    @SerialName("vram_pct") val vramPct: Double = 0.0,
+    @SerialName("pcie_drop") val pcieDrop: Boolean = false,
     val fan: String = "",
     val thr: String = "",
     @SerialName("thr_label") val thrLabel: String = "",
@@ -149,6 +152,18 @@ data class LiveStatsSummaryDto(
 data class AuthVerifyReqDto(val pin: String)
 
 @Serializable
+data class EnvFingerprintDto(
+    @SerialName("gpu_name") val gpuName: String = "",
+    @SerialName("driver_version") val driverVersion: String = "",
+    @SerialName("vram_total_mb") val vramTotalMb: Long = 0L,
+    @SerialName("pcie_max") val pcieMax: String = "",
+    val vbios: String = "",
+    @SerialName("os_version") val osVersion: String = "",
+    @SerialName("power_plan") val powerPlan: String = "",
+    @SerialName("driver_changed_from") val driverChangedFrom: String? = null,
+)
+
+@Serializable
 data class StateResponse(
     @SerialName("collector_running") val collectorRunning: Boolean = false,
     @SerialName("live_running") val liveRunning: Boolean = false,
@@ -156,6 +171,7 @@ data class StateResponse(
     val cpu: CpuSnapshotDto? = null,
     @SerialName("cpu_points") val cpuPoints: List<LiveCpuPointDto> = emptyList(),
     val stats: LiveStatsSummaryDto = LiveStatsSummaryDto(),
+    val env: EnvFingerprintDto? = null,
     @SerialName("read_only_remote") val readOnlyRemote: Boolean = false,
     val heartbeat: HeartbeatDto = HeartbeatDto(),
     val session: String = "",
@@ -190,6 +206,8 @@ data class ServerConfigDto(
     @SerialName("power_warn") val powerWarn: Double = 360.0,
     @SerialName("cpu_temp_warn") val cpuTempWarn: Double = 90.0,
     @SerialName("cpu_usage_warn") val cpuUsageWarn: Double = 95.0,
+    @SerialName("vram_warn_pct") val vramWarnPct: Double = 92.0,
+    @SerialName("pcie_drop_warn") val pcieDropWarn: Boolean = true,
     @SerialName("gpu_index") val gpuIndex: Int = 0,
     @SerialName("minimize_to_tray") val minimizeToTray: Boolean = true,
     @SerialName("web_port") val webPort: Int = 8787,

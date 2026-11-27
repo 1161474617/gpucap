@@ -239,6 +239,7 @@ pub struct GpuCapApp {
     live_cpu: Option<crate::cpu_probe::CpuSnapshot>,
     live_cpu_points: Vec<crate::live::LiveCpuPoint>,
     live_stats: crate::live::LiveStatsSummary,
+    live_env: Option<crate::infra::EnvFingerprint>,
     hud_mode: bool,
     cpu_cores_expanded: bool,
     last_alert_notified: usize,
@@ -371,6 +372,7 @@ impl GpuCapApp {
             live_cpu: None,
             live_cpu_points: Vec::new(),
             live_stats: crate::live::LiveStatsSummary::default(),
+            live_env: None,
             hud_mode: false,
             cpu_cores_expanded: true,
             last_alert_notified: 0,
@@ -552,9 +554,9 @@ impl GpuCapApp {
                     power: r.power,
                     core: r.core,
                     memclk: r.memclk,
-                    pcie: r.pcie,
+                    pcie: if r.pcie_drop { format!("{} (降速)", r.pcie) } else { r.pcie },
                     util: r.util,
-                    vram: r.vram,
+                    vram: if r.vram_pct > 0.0 { format!("{} ({:.0}%)", r.vram, r.vram_pct) } else { r.vram },
                     fan: r.fan,
                     thr_label: if r.thr_label.is_empty() { "—".to_string() } else { r.thr_label },
                     ok: r.ok,
@@ -594,6 +596,7 @@ impl GpuCapApp {
         self.live_cpu = snap.cpu;
         self.live_cpu_points = snap.cpu_points;
         self.live_stats = snap.stats;
+        self.live_env = snap.env;
     }
 
     fn tick(&mut self) {
@@ -1749,6 +1752,18 @@ impl GpuCapApp {
                         );
                         ui.end_row();
 
+                        ui.label("显存占用告警阈值 (%)：");
+                        ui.add(
+                            egui::DragValue::new(&mut draft.cfg.vram_warn_pct)
+                                .speed(1.0)
+                                .range(50.0..=100.0),
+                        );
+                        ui.end_row();
+
+                        ui.label("PCIe 高负载掉速预警：");
+                        ui.checkbox(&mut draft.cfg.pcie_drop_warn, "高负载下带宽低于硬件上限时告警");
+                        ui.end_row();
+
                         ui.label("远程访问口令 (留空不限制)：");
                         ui.add(egui::TextEdit::singleline(&mut draft.cfg.auth_pin).password(true).desired_width(140.0));
                         ui.end_row();
@@ -2429,6 +2444,17 @@ impl eframe::App for GpuCapApp {
                             RichText::new(format!("当前会话 {}", sname))
                                 .size(12.5)
                                 .color(COL_DIM),
+                        );
+                    }
+                    if let Some(ref env) = self.live_env {
+                        let drv = if env.driver_version.is_empty() { "—" } else { &env.driver_version };
+                        ui.label(
+                            RichText::new(format!(
+                                "· {} · 驱动 {} · 电源 {}",
+                                env.gpu_name, drv, env.power_plan
+                            ))
+                            .size(11.5)
+                            .color(COL_DIM),
                         );
                     }
 

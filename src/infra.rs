@@ -133,6 +133,8 @@ pub struct Config {
     pub power_warn: f64,
     pub cpu_temp_warn: f64,
     pub cpu_usage_warn: f64,
+    pub vram_warn_pct: f64,
+    pub pcie_drop_warn: bool,
     pub gpu_index: usize,
     pub minimize_to_tray: bool,
     pub web_port: u16,
@@ -159,6 +161,8 @@ impl Default for Config {
             power_warn: 360.0,
             cpu_temp_warn: 90.0,
             cpu_usage_warn: 95.0,
+            vram_warn_pct: 92.0,
+            pcie_drop_warn: true,
             gpu_index: 0,
             minimize_to_tray: true,
             web_port: 8787,
@@ -166,6 +170,59 @@ impl Default for Config {
             read_only_remote: false,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EnvFingerprint {
+    pub gpu_name: String,
+    pub driver_version: String,
+    pub vram_total_mb: u64,
+    pub pcie_max: String,
+    pub vbios: String,
+    pub os_version: String,
+    pub power_plan: String,
+    pub driver_changed_from: Option<String>,
+}
+
+/// 读取当前 Windows 电源计划名称（隐藏窗口执行，失败时返回 "—"）。
+pub fn detect_power_plan() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        if let Ok(out) = std::process::Command::new("powercfg")
+            .arg("/getactivescheme")
+            .creation_flags(0x08000000)
+            .output()
+        {
+            if out.status.success() {
+                let txt = String::from_utf8_lossy(&out.stdout);
+                if let (Some(l), Some(r)) = (txt.rfind('('), txt.rfind(')')) {
+                    if r > l + 1 {
+                        return txt[l + 1..r].trim().to_string();
+                    }
+                }
+            }
+        }
+    }
+    "—".to_string()
+}
+
+/// 比对并更新上次记录的显卡驱动版本号；若发生变更则返回旧版本号。
+pub fn check_and_update_driver_version(current: &str) -> Option<String> {
+    let cur = current.trim();
+    if cur.is_empty() {
+        return None;
+    }
+    let dir = data_dir();
+    let _ = fs::create_dir_all(&dir);
+    let path = dir.join("last_driver.txt");
+    let prev = fs::read_to_string(&path).ok().map(|s| s.trim().to_string());
+    let changed = match prev {
+        Some(ref old) if !old.is_empty() && old != cur => Some(old.clone()),
+        _ => None,
+    };
+    let _ = fs::write(&path, cur);
+    changed
 }
 
 /// 将 NVML `clocks_throttle_reasons.active` 十六进制/十进制掩码解码为中文短标签。
