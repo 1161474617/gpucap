@@ -38,6 +38,7 @@ const fullHistory = ref(false)
 const logFilter = ref('')
 const trendWindow = ref(20)
 const selectedSession = ref('')
+const manualSessionLock = ref(false)
 
 const state = ref({
   collector_running: false,
@@ -182,10 +183,31 @@ async function saveLiveSession() {
 async function fetchState(force = false) {
   if (paused.value && !force) return
   try {
+    const prevLive = state.value.live_running
+    const prevCollector = state.value.collector_running
     const q = new URLSearchParams()
     if (selectedSession.value) q.set('session', selectedSession.value)
     if (fullHistory.value) q.set('full', '1')
     const data = await apiJson(`/api/state?${q.toString()}`)
+
+    // 检测主机端刚开启实时监测或后台采集，自动解除旧会话锁定并立即跟随
+    const activeSess = (data.sessions || []).find((s) => s.active && s.name !== '__live__')?.name || ''
+    let needRefetch = false
+    if ((!prevLive && data.live_running) || (!manualSessionLock.value && data.live_running && data.session !== '__live__')) {
+      manualSessionLock.value = false
+      selectedSession.value = '__live__'
+      paused.value = false
+      if (data.session !== '__live__') needRefetch = true
+    } else if (!prevCollector && data.collector_running) {
+      manualSessionLock.value = false
+      selectedSession.value = activeSess
+      paused.value = false
+      if (activeSess && data.session !== activeSess) needRefetch = true
+    } else if (!manualSessionLock.value && data.collector_running && activeSess && data.session !== activeSess) {
+      selectedSession.value = activeSess
+      needRefetch = true
+    }
+
     const nextAlertCount = data.alert_count || 0
     if (nextAlertCount > lastNotifiedAlerts.value && (lastNotifiedAlerts.value > 0 || data.live_running)) {
       const latest = (data.alerts || [])[data.alerts.length - 1]
@@ -198,6 +220,10 @@ async function fetchState(force = false) {
     state.value = data
     if (!selectedSession.value && data.session) {
       selectedSession.value = data.session
+    }
+    if (needRefetch && !force) {
+      await fetchState(true)
+      return
     }
     if (!paused.value && activeTab.value === 'gpu') {
       await nextTick()
@@ -347,6 +373,8 @@ async function saveSettings() {
 }
 
 function onPickSession(name) {
+  const picked = (state.value.sessions || []).find((s) => s.name === name)
+  manualSessionLock.value = !(name === '__live__' || picked?.active)
   selectedSession.value = name
   fullHistory.value = false
   logFilter.value = ''

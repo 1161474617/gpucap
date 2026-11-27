@@ -48,6 +48,7 @@ data class MainUiState(
     // 原生监控数据状态
     val monitorState: StateResponse = StateResponse(),
     val selectedSession: String = "",
+    val manualSessionLock: Boolean = false,
     val fullHistory: Boolean = false,
     val paused: Boolean = false,
     val onlyBad: Boolean = false,
@@ -244,8 +245,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (url.isEmpty()) return
         val res = repo.fetchState(url, st.selectedSession, st.fullHistory)
         res.onSuccess { data ->
+            var needImmediateRefetch = false
+            var delayMs = 0L
             _uiState.update { cur ->
-                val effSess = cur.selectedSession.ifEmpty { data.session }
+                val prevLive = cur.monitorState.liveRunning
+                val prevCollector = cur.monitorState.collectorRunning
+                val activeSess = data.sessions.firstOrNull { it.active && it.name != "__live__" }?.name
+
+                var nextSess = cur.selectedSession.ifEmpty { data.session }
+                var nextLock = cur.manualSessionLock
+                var nextPaused = cur.paused
+
+                if ((!prevLive && data.liveRunning) || (!cur.manualSessionLock && data.liveRunning && data.session != "__live__")) {
+                    nextSess = "__live__"
+                    nextLock = false
+                    nextPaused = false
+                    if (data.session != "__live__") needImmediateRefetch = true
+                } else if (!prevCollector && data.collectorRunning) {
+                    nextSess = activeSess ?: ""
+                    nextLock = false
+                    nextPaused = false
+                    if (activeSess == null || data.session != activeSess) {
+                        needImmediateRefetch = true
+                        if (activeSess == null) delayMs = 800L
+                    }
+                } else if (!cur.manualSessionLock && data.collectorRunning && activeSess != null && data.session != activeSess) {
+                    nextSess = activeSess
+                    needImmediateRefetch = true
+                }
+
                 val effTab = if (data.cpu == null && cur.activeTab == MonitorTab.Cpu) {
                     MonitorTab.Gpu
                 } else {
@@ -260,12 +288,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 cur.copy(
                     monitorState = data,
-                    selectedSession = effSess,
+                    selectedSession = nextSess,
+                    manualSessionLock = nextLock,
+                    paused = nextPaused,
                     activeTab = effTab,
                     connError = null,
                     liveAlertBanner = newAlert,
                     lastNotifiedAlertCount = data.alertCount,
                 )
+            }
+            if (needImmediateRefetch) {
+                if (delayMs > 0L) delay(delayMs)
+                val latest = _uiState.value
+                repo.fetchState(url, latest.selectedSession, latest.fullHistory).onSuccess { fresh ->
+                    _uiState.update { cur ->
+                        cur.copy(
+                            monitorState = fresh,
+                            selectedSession = cur.selectedSession.ifEmpty { fresh.session },
+                            connError = null,
+                        )
+                    }
+                }
             }
             if (_uiState.value.activeTab == MonitorTab.Alerts) {
                 loadIncidents()
@@ -291,7 +334,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectSession(name: String) {
-        _uiState.update { it.copy(selectedSession = name, fullHistory = false) }
+        val picked = _uiState.value.monitorState.sessions.firstOrNull { it.name == name }
+        val lock = !(name == "__live__" || picked?.active == true)
+        _uiState.update { it.copy(selectedSession = name, manualSessionLock = lock, fullHistory = false) }
         manualRefresh()
     }
 
@@ -397,7 +442,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _toastFlow.tryEmit(if (start) "已发送启动采集指令" else "已发送停止采集指令")
                     if (start) {
                         // 启动采集后会生成新会话，清空当前选中的旧会话以便自动切到最新采集会话
-                        _uiState.update { it.copy(selectedSession = "", fullHistory = false, paused = false) }
+                        _uiState.update { it.copy(selectedSession = "", manualSessionLock = false, fullHistory = false, paused = false) }
                         refreshOnce(manual = false)
                         delay(1200L)
                         _uiState.update { it.copy(selectedSession = "", fullHistory = false) }
@@ -419,7 +464,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 .onSuccess {
                     if (start) {
                         _toastFlow.tryEmit("已开启纯内存实时监测（不保存磁盘）")
-                        _uiState.update { it.copy(selectedSession = "__live__", fullHistory = true, paused = false) }
+                        _uiState.update { it.copy(selectedSession = "__live__", manualSessionLock = false, fullHistory = true, paused = false) }
                     } else {
                         _toastFlow.tryEmit("已停止实时监测（保留内存日志）")
                     }

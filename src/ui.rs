@@ -600,6 +600,7 @@ impl GpuCapApp {
     }
 
     fn tick(&mut self) {
+        let was_collector = self.collector_running;
         let alive = running_pid().is_some();
         let starting = self.starting_until.is_some_and(|t| Instant::now() < t);
         if alive {
@@ -613,8 +614,24 @@ impl GpuCapApp {
         let live_now = crate::live::is_running();
         if live_now && !self.live_running {
             self.live_viewing = true;
+            self.paused = false;
         }
         self.live_running = live_now;
+
+        if alive && !was_collector && !live_now {
+            self.awaiting_new_session = true;
+            self.live_viewing = false;
+            self.paused = false;
+        } else if alive && !live_now && !self.live_viewing {
+            if let Some(latest) = resolve_session(None) {
+                if self.session.as_ref() != Some(&latest) {
+                    self.sessions = list_sessions();
+                    self.selected_idx = self.sessions.iter().position(|p| p == &latest).unwrap_or(0);
+                    self.switch_session(latest);
+                    return;
+                }
+            }
+        }
 
         if self.awaiting_new_session {
             self.sessions = list_sessions();
