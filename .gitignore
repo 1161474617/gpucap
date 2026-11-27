@@ -1,0 +1,36 @@
+# Android / Gradle 编译产物
+build/
+**/build/
+.gradle/
+*.class
+*.apk
+*.aab
+*.exe
+# Rust 编译产物与临时文件
+target/
+**/target/
+**/*.rs.bk
+*.pdb
+# Node.js 依赖与构建产物
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.next/
+.nuxt/
+.vite/
+out/
+coverage/
+
+# 日志与本地环境变量
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.env
+.env.local
+.env.*.local
+
+data/*
+data/sessions/
+**/sessions/
